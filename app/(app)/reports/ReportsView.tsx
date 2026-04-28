@@ -97,16 +97,16 @@ export default function ReportsView({ parts, transfers, expenses, categories }: 
 
       canvas.toBlob(async (blob) => {
         if (!blob) return
-        const file = new File([blob], 'hisab-report.png', { type: 'image/png' })
+        const file = new File([blob], 'hisaab-report.png', { type: 'image/png' })
 
         if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: 'Hisab Report' })
+          await navigator.share({ files: [file], title: 'Hisaab Report' })
         } else {
           // Fallback: direct download
           const url = URL.createObjectURL(blob)
           const a = document.createElement('a')
           a.href = url
-          a.download = 'hisab-report.png'
+          a.download = 'hisaab-report.png'
           document.body.appendChild(a)
           a.click()
           document.body.removeChild(a)
@@ -128,7 +128,7 @@ export default function ReportsView({ parts, transfers, expenses, categories }: 
       const h = canvas.height / 2
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [w, h] })
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, h)
-      pdf.save('hisab-report.pdf')
+      pdf.save('hisaab-report.pdf')
     } finally {
       setExporting(false)
     }
@@ -335,7 +335,7 @@ export default function ReportsView({ parts, transfers, expenses, categories }: 
         </div>
 
         {/* Footer watermark */}
-        <p className="text-center text-xs text-slate-300 pt-1">Hisab · {new Date().toLocaleDateString('en-PK')}</p>
+        <p className="text-center text-xs text-slate-300 pt-1">Hisaab · {new Date().toLocaleDateString('en-PK')}</p>
       </div>
 
       {/* PDF export (secondary) */}

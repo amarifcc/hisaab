@@ -51,7 +51,7 @@ export default function Sidebar({ userName, userRole }: Props) {
         <button onClick={() => setOpen(true)} className="p-1 -ml-1 text-slate-600">
           <Menu size={22} />
         </button>
-        <span className="ml-3 text-base font-bold text-slate-900">Hisab</span>
+        <span className="ml-3 text-base font-bold text-slate-900">Hisaab</span>
       </header>
 
       {/* Overlay */}
@@ -75,7 +75,7 @@ export default function Sidebar({ userName, userRole }: Props) {
             <div className="w-8 h-8 bg-blue-700 rounded-xl flex items-center justify-center">
               <span className="text-white text-sm font-bold">ح</span>
             </div>
-            <span className="font-bold text-slate-900">Hisab</span>
+            <span className="font-bold text-slate-900">Hisaab</span>
           </div>
           <button onClick={() => setOpen(false)} className="text-slate-400 p-1">
             <X size={20} />

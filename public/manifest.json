@@ -1,6 +1,6 @@
 {
-  "name": "Hisab",
-  "short_name": "Hisab",
+  "name": "Hisaab",
+  "short_name": "Hisaab",
   "description": "Renovation expense tracker",
   "start_url": "/",
   "display": "standalone",

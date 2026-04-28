@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Hisab',
+  title: 'Hisaab',
   description: 'Renovation expense tracker',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Hisab',
+    title: 'Hisaab',
   },
 }
 
