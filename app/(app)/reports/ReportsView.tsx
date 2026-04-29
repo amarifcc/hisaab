@@ -23,11 +23,12 @@ interface Props {
   categories: Category[]
   deals: DealWithPart[]
   paidMap: Record<string, Record<string, number>>
+  isSupervisor: boolean
 }
 
 const PART_FILTER_KEY = 'hisab_reports_filter_part'
 
-export default function ReportsView({ parts, transfers, expenses, categories, deals, paidMap }: Props) {
+export default function ReportsView({ parts, transfers, expenses, categories, deals, paidMap, isSupervisor }: Props) {
   const [tab, setTab] = useState<Tab>('parts')
   const [reportTransfers, setReportTransfers] = useState(transfers)
   const [reportExpenses, setReportExpenses] = useState(expenses)
@@ -40,6 +41,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   }, [])
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [addHintOpen, setAddHintOpen] = useState(false)
   const [sheet, setSheet] = useState<null | 'expense' | 'transfer' | 'deal'>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const addRef = useRef<HTMLDivElement>(null)
@@ -47,7 +49,10 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false)
-      if (addRef.current && !addRef.current.contains(e.target as Node)) setAddOpen(false)
+      if (addRef.current && !addRef.current.contains(e.target as Node)) {
+        setAddOpen(false)
+        setAddHintOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -137,13 +142,24 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
           </div>
           <div className="relative" ref={addRef}>
             <button
-              onClick={() => setAddOpen(o => !o)}
-              className="flex items-center gap-1.5 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm"
+              onClick={() => isSupervisor ? setAddOpen(o => !o) : setAddHintOpen(o => !o)}
+              onMouseEnter={() => !isSupervisor && setAddHintOpen(true)}
+              onMouseLeave={() => !isSupervisor && setAddHintOpen(false)}
+              aria-disabled={!isSupervisor}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium shadow-sm',
+                isSupervisor ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              )}
             >
               <Plus size={14} />
               Add
             </button>
-            {addOpen && (
+            {!isSupervisor && addHintOpen && (
+              <div className="absolute top-full right-0 mt-1.5 bg-slate-900 text-white text-xs font-medium rounded-lg px-2.5 py-1.5 shadow-lg z-30 whitespace-nowrap">
+                Supervisor access required
+              </div>
+            )}
+            {isSupervisor && addOpen && (
               <div className="absolute top-full right-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[170px] overflow-hidden">
                 <button
                   onClick={() => openSheet('expense')}

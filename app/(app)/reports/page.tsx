@@ -5,6 +5,12 @@ import ReportsView from './ReportsView'
 
 export default async function ReportsPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let isSupervisor = false
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    isSupervisor = (profile as { role?: string } | null)?.role === 'supervisor'
+  }
 
   const [{ data: parts }, { data: transfers }, { data: expenses }, { data: categories }, { data: deals }] = await Promise.all([
     supabase.from('project_parts').select('*').order('sort_order'),
@@ -33,6 +39,7 @@ export default async function ReportsPage() {
       categories={categories ?? []}
       deals={deals ?? []}
       paidMap={paidMap}
+      isSupervisor={isSupervisor}
     />
   )
 }
