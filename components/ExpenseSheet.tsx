@@ -267,9 +267,25 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
                 )}
               >
                 <option value="">Select category…</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {(() => {
+                  const groups = categories.filter(c => c.is_group)
+                  const groupIds = new Set(groups.map(g => g.id))
+                  const ungrouped = categories.filter(c => !c.is_group && c.parent_id === null)
+                  return (
+                    <>
+                      {groups.map(g => (
+                        <optgroup key={g.id} label={g.name}>
+                          {categories.filter(c => c.parent_id === g.id).map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {ungrouped.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </>
+                  )
+                })()}
               </select>
             </div>
           </div>

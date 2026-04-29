@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Pencil, Trash2, ArrowDownLeft, ChevronDown } from 'lucide-react'
-import { formatPKR, formatDate, cn } from '@/lib/utils'
+import { formatPKR, formatDate, fmtRef, cn } from '@/lib/utils'
 import TransferSheet from '@/components/TransferSheet'
 import type { ProjectPart, Transfer } from '@/lib/types'
 
@@ -134,13 +134,17 @@ export default function TransfersList({ initialTransfers, parts, isSupervisor }:
                     <ArrowDownLeft size={18} style={{ color: part?.color }} />
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-medium text-white px-1.5 py-0.5 rounded" style={{ backgroundColor: part?.color }}>
                         {part?.short_name}
                       </span>
+                      <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Transfer</span>
                       {t.from_person && <span className="text-sm text-slate-700 font-medium">{t.from_person}</span>}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(t.date)}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {t.ref_number ? <span className="font-mono mr-1.5">{fmtRef('TRF', t.ref_number)}</span> : null}
+                      {formatDate(t.date)}
+                    </p>
                     {t.notes && <p className="text-xs text-slate-500 mt-0.5">{t.notes}</p>}
                   </div>
                 </div>

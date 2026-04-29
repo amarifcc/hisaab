@@ -23,6 +23,10 @@ export function amountHint(value: string | number): string {
   return `${k % 1 === 0 ? k : parseFloat(k.toFixed(1))}k`
 }
 
+export function fmtRef(prefix: 'TRF' | 'EXP', num: number): string {
+  return `${prefix}-${String(num).padStart(3, '0')}`
+}
+
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-PK', {
     day: 'numeric',

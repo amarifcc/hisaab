@@ -54,17 +54,23 @@ export interface Database {
           id: string
           name: string
           color: string
+          parent_id: string | null
+          is_group: boolean
           created_at: string
         }
         Insert: {
           id?: string
           name: string
           color?: string
+          parent_id?: string | null
+          is_group?: boolean
           created_at?: string
         }
         Update: {
           name?: string
           color?: string
+          parent_id?: string | null
+          is_group?: boolean
         }
       }
       transfers: {
@@ -75,6 +81,7 @@ export interface Database {
           amount: number
           date: string
           notes: string | null
+          ref_number: number
           created_by: string | null
           created_at: string
           updated_at: string
@@ -108,6 +115,7 @@ export interface Database {
           category_id: string | null
           date: string
           notes: string | null
+          ref_number: number
           created_by: string | null
           created_at: string
           updated_at: string

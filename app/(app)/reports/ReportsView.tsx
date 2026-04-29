@@ -324,12 +324,12 @@ function PeopleReport({ expenses, getAmount, selectedPart }: {
                   <p className="text-sm font-medium text-slate-800 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
-                  {e.categories && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
-                  )}
                   {e.expense_allocations.map(a => (
                     <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
                   ))}
+                  {e.categories && (
+                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
+                  )}
                   <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
                 </div>
               </div>
@@ -367,12 +367,12 @@ function PersonCard({ name, total, items, getAmount }: {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-slate-700 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                 <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                  {e.categories && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
-                  )}
                   {e.expense_allocations.map(a => (
                     <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
                   ))}
+                  {e.categories && (
+                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
+                  )}
                   <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
                 </div>
               </div>
@@ -395,8 +395,11 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
 }) {
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
 
+  // Only leaf categories (not group headers)
+  const leafCategories = categories.filter(c => !c.is_group)
+
   const totalOut = expenses.reduce((s, e) => s + getAmount(e), 0)
-  const breakdown = categories.map(c => ({
+  const breakdown = leafCategories.map(c => ({
     cat: c,
     total: expenses.filter(e => e.category_id === c.id).reduce((s, e) => s + getAmount(e), 0),
     count: expenses.filter(e => e.category_id === c.id).length,
@@ -451,34 +454,16 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
         <p className="text-center text-slate-400 text-sm py-8">No expenses recorded</p>
       )}
 
-      {/* All-categories view: progress bar breakdown */}
-      {!isFiltered && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          {breakdown.map(({ cat, total, count }, i) => {
-            const pct = totalOut > 0 ? (total / totalOut) * 100 : 0
-            return (
-              <div key={cat.id} className={cn('px-4 py-3.5', i > 0 && 'border-t border-slate-100')}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                    <span className="text-sm font-medium text-slate-800">{cat.name}</span>
-                    <span className="text-xs text-slate-400">{count} txn</span>
-                  </div>
-                  <div className="flex-shrink-0 ml-2">
-                    <span className="text-sm font-bold text-slate-800">PKR {formatPKR(total)}</span>
-                    <span className="text-xs text-slate-400 ml-1.5">{pct.toFixed(0)}%</span>
-                  </div>
-                </div>
-                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+      {/* All-categories view: expandable category cards */}
+      {!isFiltered && breakdown.map(({ cat, total, count }) => {
+        const items = expenses.filter(e => e.category_id === cat.id).sort((a, b) => b.date.localeCompare(a.date))
+        const pct = totalOut > 0 ? (total / totalOut) * 100 : 0
+        return (
+          <CategoryCard key={cat.id} cat={cat} total={total} count={count} pct={pct} items={items} getAmount={getAmount} />
+        )
+      })}
 
-      {/* Filtered view: flat transaction list */}
+      {/* Filtered view: flat transaction list grouped by category */}
       {isFiltered && filteredExpenses.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {filteredExpenses.map((e, i) => (
@@ -491,14 +476,62 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
                   <p className="text-sm font-medium text-slate-800 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-wrap">
-                  {e.paid_to && <span className="text-xs text-slate-500 font-medium">{e.paid_to}</span>}
                   {e.expense_allocations.map(a => (
                     <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
                   ))}
+                  {e.paid_to && <span className="text-xs text-slate-500 font-medium">{e.paid_to}</span>}
                   <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
                 </div>
               </div>
               <span className="text-sm font-bold text-rose-500 ml-3 flex-shrink-0">PKR {formatPKR(getAmount(e))}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CategoryCard({ cat, total, count, pct, items, getAmount }: {
+  cat: Category; total: number; count: number; pct: number
+  items: ExpenseWithDetails[]; getAmount: (e: ExpenseWithDetails) => number
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      <button className="w-full px-4 py-3.5 text-left" onClick={() => setExpanded(x => !x)}>
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
+            <span className="text-sm font-semibold text-slate-800">{cat.name}</span>
+            <span className="text-xs text-slate-400">{count} txn</span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+            <span className="text-sm font-bold text-slate-800">PKR {formatPKR(total)}</span>
+            <span className="text-xs text-slate-400">{pct.toFixed(0)}%</span>
+          </div>
+        </div>
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-slate-100">
+          {items.map((e, i) => (
+            <div key={e.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-slate-700 truncate">{e.description || cat.name}</p>
+                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                  {e.expense_allocations.map(a => (
+                    <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
+                  ))}
+                  {e.paid_to && <span className="text-xs text-slate-500">{e.paid_to}</span>}
+                  <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-rose-500 ml-2 flex-shrink-0">PKR {formatPKR(getAmount(e))}</span>
             </div>
           ))}
         </div>

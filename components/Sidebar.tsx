@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Menu, X, LayoutDashboard, ArrowLeftRight, Receipt,
+  Menu, X, Activity, ArrowLeftRight, Receipt,
   BarChart2, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, Handshake
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -12,16 +12,16 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
 const mainNav = [
-  { href: '/',          icon: LayoutDashboard, label: 'Dashboard'  },
-  { href: '/transfers', icon: ArrowLeftRight,  label: 'Transfers'  },
-  { href: '/expenses',  icon: Receipt,         label: 'Works'      },
-  { href: '/deals',     icon: Handshake,       label: 'Deals'      },
-  { href: '/reports',   icon: BarChart2,       label: 'Reports'    },
+  { href: '/reports',  icon: BarChart2,      label: 'Reports'   },
+  { href: '/activity', icon: Activity,       label: 'Activity'  },
+  { href: '/transfers',icon: ArrowLeftRight, label: 'Transfers' },
+  { href: '/expenses', icon: Receipt,        label: 'Expenses'  },
+  { href: '/deals',    icon: Handshake,      label: 'Deals'     },
 ]
 
 const settingsNav = [
   { href: '/settings/parts',      icon: Layers, label: 'Project Parts' },
-  { href: '/settings/categories', icon: Tag,    label: 'Work Categories' },
+  { href: '/settings/categories', icon: Tag,    label: 'Categories'      },
   { href: '/settings/people',     icon: Users,  label: 'People'        },
 ]
 
@@ -85,7 +85,7 @@ export default function Sidebar({ userName, userRole }: Props) {
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
           {mainNav.map(({ href, icon: Icon, label }) => {
-            const active = pathname === href
+            const active = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
                 key={href}

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, TrendingDown, ChevronDown } from 'lucide-react'
-import { formatPKR, formatDate, cn } from '@/lib/utils'
+import { Plus, Pencil, Trash2, TrendingDown, ChevronDown, Check } from 'lucide-react'
+import { formatPKR, formatDate, fmtRef, cn } from '@/lib/utils'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import type { ProjectPart, Category, Expense, ExpenseAllocation } from '@/lib/types'
 
@@ -27,7 +27,9 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
   const [filterPart, setFilterPart] = useState<string>('all')
   const [filterCat, setFilterCat] = useState<string>('all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const catDropdownRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const saved = localStorage.getItem(PART_FILTER_KEY)
     if (saved) setFilterPart(saved)
@@ -37,6 +39,9 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
     function handler(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false)
+      }
+      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target as Node)) {
+        setCatDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -50,6 +55,10 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
   }
 
   const selectedPart = parts.find(p => p.id === filterPart)
+  const selectedCat = categories.find(c => c.id === filterCat)
+  const catGroups = categories.filter(c => c.is_group)
+  const catGroupIds = new Set(catGroups.map(g => g.id))
+  const ungroupedCats = categories.filter(c => !c.is_group && (c.parent_id === null || !catGroupIds.has(c.parent_id ?? '')))
 
   const filtered = expenses.filter(e => {
     const partMatch = filterPart === 'all' || e.expense_allocations.some(a => a.part_id === filterPart)
@@ -84,7 +93,7 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Works</h1>
+            <h1 className="text-xl font-bold text-slate-900">Expenses</h1>
             <p className="text-xs text-slate-400">PKR {formatPKR(totalFiltered)}</p>
           </div>
         </div>
@@ -138,27 +147,75 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
         </div>
       </div>
 
-      {/* Category tabs */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          onClick={() => setFilterCat('all')}
-          className={cn('flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
-            filterCat === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200')}
-        >
-          All
-        </button>
-        {categories.map(c => (
+      {/* Category filter dropdown */}
+      <div className="mb-4" ref={catDropdownRef}>
+        <div className="relative inline-block">
           <button
-            key={c.id}
-            onClick={() => setFilterCat(prev => prev === c.id ? 'all' : c.id)}
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
-            style={filterCat === c.id
-              ? { backgroundColor: c.color, color: '#fff', borderColor: c.color }
-              : { backgroundColor: '#fff', color: '#475569', borderColor: '#e2e8f0' }}
+            onClick={() => setCatDropdownOpen(o => !o)}
+            className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 shadow-sm"
           >
-            {c.name}
+            {selectedCat && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedCat.color }} />}
+            {selectedCat ? selectedCat.name : 'All Categories'}
+            <ChevronDown size={13} className={cn('transition-transform', catDropdownOpen && 'rotate-180')} />
           </button>
-        ))}
+
+          {catDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[200px] overflow-hidden max-h-72 overflow-y-auto">
+              <button
+                onClick={() => { setFilterCat('all'); setCatDropdownOpen(false) }}
+                className={cn('w-full text-left px-4 py-3 text-sm font-medium flex items-center justify-between transition-colors',
+                  filterCat === 'all' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50')}
+              >
+                All Categories
+                {filterCat === 'all' && <Check size={14} />}
+              </button>
+
+              {catGroups.map(group => {
+                const children = categories.filter(c => c.parent_id === group.id)
+                return (
+                  <div key={group.id}>
+                    <div className="px-4 pt-2 pb-1 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: group.color }} />
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{group.name}</span>
+                    </div>
+                    {children.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setFilterCat(c.id); setCatDropdownOpen(false) }}
+                        className={cn('w-full text-left pl-8 pr-4 py-2.5 text-sm flex items-center justify-between transition-colors',
+                          filterCat === c.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-700 hover:bg-slate-50')}
+                      >
+                        {c.name}
+                        {filterCat === c.id && <Check size={14} />}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })}
+
+              {ungroupedCats.length > 0 && (
+                <div>
+                  {catGroups.length > 0 && (
+                    <div className="px-4 pt-2 pb-1">
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Other</span>
+                    </div>
+                  )}
+                  {ungroupedCats.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setFilterCat(c.id); setCatDropdownOpen(false) }}
+                      className={cn('w-full text-left px-4 py-2.5 text-sm flex items-center justify-between transition-colors',
+                        filterCat === c.id ? 'bg-blue-50 text-blue-700 font-medium' : 'text-slate-700 hover:bg-slate-50')}
+                    >
+                      {c.name}
+                      {filterCat === c.id && <Check size={14} />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* List */}
@@ -185,21 +242,22 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                     <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                      {e.categories && (
-                        <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>
-                          {e.categories.name}
-                        </span>
-                      )}
                       {displayAllocs.map(a => (
                         <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>
-                          {a.project_parts?.short_name} {formatPKR(a.amount)}
+                          {a.project_parts?.short_name}
                         </span>
                       ))}
                       {allocs.length > 1 && filterPart === 'all' && (
                         <span className="text-xs text-slate-400">split</span>
                       )}
+                      {e.categories && (
+                        <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>
+                          {e.categories.name}
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5">
+                      {e.ref_number ? <span className="font-mono mr-1.5">{fmtRef('EXP', e.ref_number)}</span> : null}
                       {formatDate(e.date)}{e.paid_to ? ` · ${e.paid_to}` : ''}
                     </p>
                     {e.notes && <p className="text-xs text-slate-400 mt-0.5 italic">{e.notes}</p>}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, ArrowDownLeft, TrendingDown, ChevronDown, Lock, Clock } from 'lucide-react'
+import { Plus, ArrowDownLeft, TrendingDown, ChevronDown, ChevronUp, Lock, Clock } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import type { ProjectPart, Category } from '@/lib/types'
@@ -96,6 +96,11 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
     })
 
   const filterLabel = filterPart === 'all' ? 'All Parts' : (shownPart?.name ?? 'All Parts')
+
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  function toggleExpand(id: string) {
+    setExpandedId(prev => prev === id ? null : id)
+  }
 
   function handleSaved(data: any) {
     if (!data) return
@@ -215,31 +220,53 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
 
         <div className="space-y-2">
           {recent.map(item => {
+            const itemId = (item as any).id
+            const isExpanded = expandedId === itemId
+
             if (item._type === 'transfer') {
               const t = item as any
               const part = t.project_parts
               return (
-                <div key={t.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                      <ArrowDownLeft size={17} className="text-emerald-600" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {part && (
-                          <span className="text-xs font-medium text-white px-1.5 py-0.5 rounded" style={{ backgroundColor: part.color }}>
-                            {part.short_name}
-                          </span>
-                        )}
-                        {t.from_person && (
-                          <span className="text-sm text-slate-700 font-medium">{t.from_person}</span>
-                        )}
+                <div key={itemId} className="bg-white rounded-xl border border-slate-100 overflow-hidden">
+                  <button
+                    onClick={() => toggleExpand(itemId)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                        <ArrowDownLeft size={17} className="text-emerald-600" />
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">{formatDate(t.date)}</p>
-                      {t.notes && <p className="text-xs text-slate-400 italic">{t.notes}</p>}
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {part && (
+                            <span className="text-xs font-medium text-white px-1.5 py-0.5 rounded" style={{ backgroundColor: part.color }}>
+                              {part.short_name}
+                            </span>
+                          )}
+                          <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Transfer</span>
+                          {t.from_person && (
+                            <span className="text-sm text-slate-700 font-medium">{t.from_person}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">{formatDate(t.date)}</p>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-emerald-600 font-bold text-sm ml-2">+{formatPKR(t.amount)}</span>
+                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      <span className="text-emerald-600 font-bold text-sm">+{formatPKR(t.amount)}</span>
+                      {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 pb-3 pt-1 border-t border-slate-100 bg-slate-50">
+                      <div className="space-y-1 text-xs text-slate-500">
+                        {part && <p><span className="text-slate-400">Part:</span> {part.name}</p>}
+                        {t.from_person && <p><span className="text-slate-400">From:</span> {t.from_person}</p>}
+                        <p><span className="text-slate-400">Amount:</span> PKR {formatPKR(t.amount)}</p>
+                        <p><span className="text-slate-400">Date:</span> {formatDate(t.date)}</p>
+                        {t.notes && <p><span className="text-slate-400">Notes:</span> {t.notes}</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             } else {
@@ -251,35 +278,64 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
                 : allocs.filter((a: AnyAllocation) => a.part_id === filterPart)
 
               return (
-                <div key={e.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center flex-shrink-0">
-                      <TrendingDown size={17} className="text-rose-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{e.description}</p>
-                      <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                        {cat && (
-                          <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: cat.color }}>
-                            {cat.name}
-                          </span>
-                        )}
-                        {displayAllocs.map((a: any) => (
-                          <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>
-                            {a.project_parts?.short_name} {formatPKR(a.amount)}
-                          </span>
-                        ))}
+                <div key={itemId} className="bg-white rounded-xl border border-slate-100 overflow-hidden">
+                  <button
+                    onClick={() => toggleExpand(itemId)}
+                    className="w-full px-4 py-3 flex items-center justify-between text-left"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center flex-shrink-0">
+                        <TrendingDown size={17} className="text-rose-500" />
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {formatDate(e.date)}{e.paid_to ? ` · ${e.paid_to}` : ''}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">{e.description}</p>
+                        <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          {displayAllocs.map((a: any) => (
+                            <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>
+                              {a.project_parts?.short_name}
+                            </span>
+                          ))}
+                          {cat && (
+                            <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: cat.color }}>
+                              {cat.name}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {formatDate(e.date)}{e.paid_to ? ` · ${e.paid_to}` : ''}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-rose-500 font-bold text-sm ml-2">
-                    -{formatPKR(filterPart === 'all'
-                      ? e.total_amount
-                      : (allocs.find((a: AnyAllocation) => a.part_id === filterPart)?.amount ?? e.total_amount))}
-                  </span>
+                    <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                      <span className="text-rose-500 font-bold text-sm">
+                        -{formatPKR(filterPart === 'all'
+                          ? e.total_amount
+                          : (allocs.find((a: AnyAllocation) => a.part_id === filterPart)?.amount ?? e.total_amount))}
+                      </span>
+                      {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 pb-3 pt-1 border-t border-slate-100 bg-slate-50">
+                      <div className="space-y-1 text-xs text-slate-500">
+                        {e.description && <p><span className="text-slate-400">Description:</span> {e.description}</p>}
+                        {cat && <p><span className="text-slate-400">Category:</span> {cat.name}</p>}
+                        {e.paid_to && <p><span className="text-slate-400">Paid to:</span> {e.paid_to}</p>}
+                        <p><span className="text-slate-400">Date:</span> {formatDate(e.date)}</p>
+                        {allocs.length > 0 && (
+                          <div>
+                            <span className="text-slate-400">Split: </span>
+                            {allocs.map((a: any) => (
+                              <span key={a.part_id} className="mr-2">
+                                {a.project_parts?.short_name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {e.notes && <p><span className="text-slate-400">Notes:</span> {e.notes}</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             }
