@@ -14,14 +14,14 @@ import { useRouter } from 'next/navigation'
 const mainNav = [
   { href: '/',          icon: LayoutDashboard, label: 'Dashboard'  },
   { href: '/transfers', icon: ArrowLeftRight,  label: 'Transfers'  },
-  { href: '/expenses',  icon: Receipt,         label: 'Expenses'   },
+  { href: '/expenses',  icon: Receipt,         label: 'Works'      },
   { href: '/deals',     icon: Handshake,       label: 'Deals'      },
   { href: '/reports',   icon: BarChart2,       label: 'Reports'    },
 ]
 
 const settingsNav = [
   { href: '/settings/parts',      icon: Layers, label: 'Project Parts' },
-  { href: '/settings/categories', icon: Tag,    label: 'Categories'    },
+  { href: '/settings/categories', icon: Tag,    label: 'Work Categories' },
   { href: '/settings/people',     icon: Users,  label: 'People'        },
 ]
 

@@ -70,8 +70,8 @@ export default function CategoriesManager({ initialCategories }: { initialCatego
           <Tag size={18} className="text-amber-600" />
         </div>
         <div>
-          <h1 className="text-lg font-bold text-slate-900">Expense Categories</h1>
-          <p className="text-xs text-slate-400">Tags for classifying expenses</p>
+          <h1 className="text-lg font-bold text-slate-900">Work Categories</h1>
+          <p className="text-xs text-slate-400">Tags for classifying works</p>
         </div>
       </div>
 

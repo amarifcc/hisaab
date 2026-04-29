@@ -84,7 +84,7 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Expenses</h1>
+            <h1 className="text-xl font-bold text-slate-900">Works</h1>
             <p className="text-xs text-slate-400">PKR {formatPKR(totalFiltered)}</p>
           </div>
         </div>

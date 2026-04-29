@@ -88,7 +88,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const TABS = [
     { id: 'parts' as Tab,      icon: Layers,    label: 'Overview'   },
     { id: 'deals' as Tab,      icon: Handshake, label: 'Deals'      },
-    { id: 'categories' as Tab, icon: Tag,        label: 'Categories' },
+    { id: 'categories' as Tab, icon: Tag,        label: 'Works'      },
     { id: 'people' as Tab,     icon: Users,      label: 'People'     },
   ]
 
