@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hisaab">
+  <rect width="512" height="512" rx="112" fill="#1e40af"/>
+  <rect x="96" y="112" width="320" height="288" rx="56" fill="#f8fafc"/>
+  <rect x="138" y="154" width="236" height="40" rx="20" fill="#dbeafe"/>
+  <rect x="138" y="238" width="236" height="40" rx="20" fill="#dbeafe"/>
+  <rect x="138" y="322" width="148" height="40" rx="20" fill="#dbeafe"/>
+  <circle cx="366" cy="342" r="54" fill="#10b981"/>
+  <path d="M340 343l17 17 35-43" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

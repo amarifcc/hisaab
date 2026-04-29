@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import PwaRegister from '@/components/PwaRegister'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -9,6 +10,9 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'Hisaab',
+  },
+  icons: {
+    apple: '/icons/icon-192.png',
   },
 }
 
@@ -23,7 +27,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-slate-50">{children}</body>
+      <body className="min-h-screen bg-slate-50">
+        <PwaRegister />
+        {children}
+      </body>
     </html>
   )
 }
