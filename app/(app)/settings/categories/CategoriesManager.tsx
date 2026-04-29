@@ -241,22 +241,25 @@ export default function CategoriesManager({ initialCategories }: { initialCatego
 
   return (
     <div className="px-4 pt-5 pb-8">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
+      <div className="flex items-start justify-between gap-3 mb-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center flex-shrink-0">
             <Tag size={18} className="text-amber-600" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-lg font-bold text-slate-900">Categories</h1>
-            <p className="text-xs text-slate-400">Groups and sub-categories for classifying expenses</p>
+            <p className="text-xs text-slate-400 leading-snug">Groups and sub-categories</p>
           </div>
         </div>
         {addingUnder !== 'new-group' && (
           <button
             onClick={() => { setAddingUnder('new-group'); setAddForm({ name: '', color: '#6366f1' }) }}
-            className="flex items-center gap-1 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium"
+            className="flex items-center gap-1 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium flex-shrink-0"
+            aria-label="Add group"
           >
-            <Plus size={15} /> Add Group
+            <Plus size={15} />
+            <span className="hidden min-[380px]:inline">Add Group</span>
+            <span className="min-[380px]:hidden">Group</span>
           </button>
         )}
       </div>

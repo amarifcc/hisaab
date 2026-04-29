@@ -10,6 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import ThemeToggle from '@/components/ThemeToggle'
 
 const mainNav = [
   { href: '/reports',  icon: BarChart2,      label: 'Reports'   },
@@ -50,6 +51,9 @@ export default function Sidebar({ userName, userRole }: Props) {
           <Menu size={22} />
         </button>
         <span className="ml-3 text-base font-bold text-slate-900">Hisaab</span>
+        <div className="ml-auto">
+          <ThemeToggle compact />
+        </div>
       </header>
 
       {/* Overlay */}
@@ -153,9 +157,12 @@ export default function Sidebar({ userName, userRole }: Props) {
               <p className="text-sm font-medium text-slate-900">{userName}</p>
               <p className="text-xs text-slate-400 capitalize">{userRole}</p>
             </div>
-            <button onClick={handleSignOut} className="text-slate-400 active:text-red-600 p-2">
-              <LogOut size={18} />
-            </button>
+            <div className="flex items-center gap-1">
+              <ThemeToggle compact />
+              <button onClick={handleSignOut} className="text-slate-400 active:text-red-600 p-2">
+                <LogOut size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </aside>

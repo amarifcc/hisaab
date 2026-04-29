@@ -25,8 +25,20 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const themeScript = `
+    try {
+      var theme = localStorage.getItem('hisaab_theme');
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      }
+    } catch (_) {}
+  `
+
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-screen bg-slate-50">
         <PwaRegister />
         {children}

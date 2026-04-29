@@ -154,36 +154,6 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
         </div>
 
         <div className="flex items-center gap-2">
-          {isSupervisor && (
-            <div className="relative" ref={addRef}>
-              <button
-                onClick={() => setAddOpen(o => !o)}
-                className="flex items-center gap-1.5 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm"
-              >
-                <Plus size={14} />
-                Add
-              </button>
-              {addOpen && (
-                <div className="absolute top-full right-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[170px] overflow-hidden">
-                  <button
-                    onClick={() => { setEditingExpense(null); setExpenseSheetOpen(true); setAddOpen(false) }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <ReceiptText size={15} className="text-rose-500" />
-                    Expense
-                  </button>
-                  <button
-                    onClick={() => { setEditingTransfer(null); setTransferSheetOpen(true); setAddOpen(false) }}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <ArrowDownToLine size={15} className="text-emerald-600" />
-                    Transfer
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
           <button
             onClick={() => setSortByLog(s => !s)}
             title={sortByLog ? 'Sorted by log date' : 'Sorted by occurrence date'}
@@ -225,6 +195,36 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
               </div>
             )}
           </div>
+
+          {isSupervisor && (
+            <div className="relative" ref={addRef}>
+              <button
+                onClick={() => setAddOpen(o => !o)}
+                className="flex items-center gap-1.5 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm"
+              >
+                <Plus size={14} />
+                Add
+              </button>
+              {addOpen && (
+                <div className="absolute top-full right-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[170px] overflow-hidden">
+                  <button
+                    onClick={() => { setEditingExpense(null); setExpenseSheetOpen(true); setAddOpen(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <ReceiptText size={15} className="text-rose-500" />
+                    Expense
+                  </button>
+                  <button
+                    onClick={() => { setEditingTransfer(null); setTransferSheetOpen(true); setAddOpen(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <ArrowDownToLine size={15} className="text-emerald-600" />
+                    Transfer
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
