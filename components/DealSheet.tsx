@@ -9,7 +9,7 @@ import type { ProjectPart, DealWithPart } from '@/lib/types'
 interface Props {
   open: boolean
   onClose: () => void
-  onSaved: () => void
+  onSaved: (data: any) => void
   parts: ProjectPart[]
   editing?: DealWithPart | null
 }
@@ -63,7 +63,8 @@ export default function DealSheet({ open, onClose, onSaved, parts, editing }: Pr
     const res = await fetch('/api/deals', { method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
     setLoading(false)
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed to save'); return }
-    onSaved()
+    const data = await res.json()
+    onSaved(data)
     onClose()
   }
 

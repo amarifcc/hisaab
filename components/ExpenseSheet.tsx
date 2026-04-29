@@ -11,7 +11,7 @@ interface Allocation { part_id: string; amount: string }
 interface Props {
   open: boolean
   onClose: () => void
-  onSaved: () => void
+  onSaved: (data: any) => void
   parts: ProjectPart[]
   categories: Category[]
   editing?: (Expense & { expense_allocations: (ExpenseAllocation & { project_parts: ProjectPart })[] }) | null
@@ -121,7 +121,8 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
     const res = await fetch('/api/expenses', { method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
     setLoading(false)
     if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed to save'); return }
-    onSaved()
+    const data = await res.json()
+    onSaved(data)
     onClose()
   }
 

@@ -13,6 +13,9 @@ export default async function PeoplePage() {
     return <div className="px-4 pt-8 text-center text-slate-400 text-sm">Supervisor access required.</div>
   }
 
-  const { data: people } = await supabase.from('people').select('*').order('name')
-  return <PeopleManager initialPeople={people ?? []} />
+  const [{ data: people }, { data: parts }] = await Promise.all([
+    supabase.from('people').select('*').order('name'),
+    supabase.from('project_parts').select('id, name, color').order('name'),
+  ])
+  return <PeopleManager initialPeople={people ?? []} parts={parts ?? []} />
 }

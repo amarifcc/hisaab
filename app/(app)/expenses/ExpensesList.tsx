@@ -5,7 +5,6 @@ import { Plus, Pencil, Trash2, TrendingDown, ChevronDown } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import type { ProjectPart, Category, Expense, ExpenseAllocation } from '@/lib/types'
-import { useRouter } from 'next/navigation'
 
 type ExpenseWithDetails = Expense & {
   categories: Category | null
@@ -29,8 +28,6 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
   const [filterCat, setFilterCat] = useState<string>('all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-
   useEffect(() => {
     const saved = localStorage.getItem(PART_FILTER_KEY)
     if (saved) setFilterPart(saved)
@@ -66,11 +63,18 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
     return s + (alloc?.amount ?? 0)
   }, 0)
 
+  function handleSaved(data: any) {
+    if (editing) {
+      setExpenses(prev => prev.map(e => e.id === data.id ? data : e))
+    } else {
+      setExpenses(prev => [data, ...prev])
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Delete this expense?')) return
-    await fetch('/api/expenses', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
-    setExpenses(prev => prev.filter(e => e.id !== id))
-    router.refresh()
+    const res = await fetch('/api/expenses', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
+    if (res.ok) setExpenses(prev => prev.filter(e => e.id !== id))
   }
 
   return (
@@ -219,7 +223,7 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
       <ExpenseSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={handleSaved}
         parts={parts}
         categories={categories}
         editing={editing}

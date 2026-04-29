@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, ArrowDownLeft, TrendingDown, ChevronDown, Lock } from 'lucide-react'
+import { Plus, ArrowDownLeft, TrendingDown, ChevronDown, Lock, Clock } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import ExpenseSheet from '@/components/ExpenseSheet'
-import { useRouter } from 'next/navigation'
 import type { ProjectPart, Category } from '@/lib/types'
 
 type AnyTransfer = Record<string, any>
@@ -25,9 +24,11 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
   const [filterPart, setFilterPart] = useState<string>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [expenseSheetOpen, setExpenseSheetOpen] = useState(false)
+  const [sortByLog, setSortByLog] = useState(false)
   const [categories, setCategories] = useState<Category[]>([])
+  const [localExpenses, setLocalExpenses] = useState(expenses)
+  const [localAllocations, setLocalAllocations] = useState(allocations)
   const filterRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
 
   // Restore filter from localStorage
   useEffect(() => {
@@ -60,7 +61,7 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
   // Balance calculations
   const partBalances = parts.map(part => {
     const deposited = transfers.filter(t => t.part_id === part.id).reduce((s, t) => s + t.amount, 0)
-    const spent = allocations.filter(a => a.part_id === part.id).reduce((s, a) => s + a.amount, 0)
+    const spent = localAllocations.filter(a => a.part_id === part.id).reduce((s, a) => s + a.amount, 0)
     return { part, deposited, spent, balance: deposited - spent }
   })
 
@@ -83,17 +84,24 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
   ).map(t => ({ _type: 'transfer' as const, _date: t.date, _created: t.created_at, ...t }))
 
   const filteredExpenses = (filterPart === 'all'
-    ? expenses
-    : expenses.filter(e => e.expense_allocations?.some((a: AnyAllocation) => a.part_id === filterPart))
+    ? localExpenses
+    : localExpenses.filter(e => e.expense_allocations?.some((a: AnyAllocation) => a.part_id === filterPart))
   ).map(e => ({ _type: 'expense' as const, _date: e.date, _created: e.created_at, ...e }))
 
   const recent = [...filteredTransfers, ...filteredExpenses]
-    .sort((a, b) => new Date(b._created).getTime() - new Date(a._created).getTime())
+    .sort((a, b) => {
+      const av = sortByLog ? a._created : a._date
+      const bv = sortByLog ? b._created : b._date
+      return bv.localeCompare(av)
+    })
 
   const filterLabel = filterPart === 'all' ? 'All Parts' : (shownPart?.name ?? 'All Parts')
 
-  function handleSaved() {
-    router.refresh()
+  function handleSaved(data: any) {
+    if (!data) return
+    setLocalExpenses(prev => [data, ...prev])
+    const newAllocs = (data.expense_allocations ?? []).map((a: any) => ({ part_id: a.part_id, amount: a.amount }))
+    setLocalAllocations(prev => [...prev, ...newAllocs])
   }
 
   return (
@@ -184,10 +192,19 @@ export default function DashboardView({ parts, transfers, expenses, allocations,
 
       {/* Recent activity */}
       <div>
-        <h2 className="text-sm font-semibold text-slate-700 mb-2">
-          Recent Activity
-          {shownPart && <span className="ml-1.5 text-xs font-normal text-slate-400">· {shownPart.name}</span>}
-        </h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold text-slate-700">
+            Recent Activity
+            {shownPart && <span className="ml-1.5 text-xs font-normal text-slate-400">· {shownPart.name}</span>}
+          </h2>
+          <button
+            onClick={() => setSortByLog(s => !s)}
+            title={sortByLog ? 'Sorted by log date — tap for occurrence date' : 'Sorted by occurrence date — tap for log date'}
+            className={cn('p-1.5 rounded-lg border transition-colors', sortByLog ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-slate-200 text-slate-400')}
+          >
+            <Clock size={13} />
+          </button>
+        </div>
 
         {recent.length === 0 && (
           <div className="text-center py-12 text-slate-400">

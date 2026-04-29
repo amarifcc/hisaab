@@ -5,7 +5,6 @@ import { Plus, Pencil, Trash2, ChevronDown, Handshake } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import DealSheet from '@/components/DealSheet'
 import type { ProjectPart, DealWithPart } from '@/lib/types'
-import { useRouter } from 'next/navigation'
 
 interface Props {
   initialDeals: DealWithPart[]
@@ -23,8 +22,6 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
   const [filterPart, setFilterPart] = useState<string>('all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-
   useEffect(() => {
     const saved = localStorage.getItem(PART_FILTER_KEY)
     if (saved) setFilterPart(saved)
@@ -91,11 +88,18 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
     return Object.entries(map)
   })()
 
+  function handleSaved(data: any) {
+    if (editing) {
+      setDeals(prev => prev.map(d => d.id === data.id ? data : d))
+    } else {
+      setDeals(prev => [data, ...prev])
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Delete this deal?')) return
-    await fetch('/api/deals', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
-    setDeals(prev => prev.filter(d => d.id !== id))
-    router.refresh()
+    const res = await fetch('/api/deals', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
+    if (res.ok) setDeals(prev => prev.filter(d => d.id !== id))
   }
 
   return (
@@ -265,7 +269,7 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
       <DealSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onSaved={() => router.refresh()}
+        onSaved={handleSaved}
         parts={parts}
         editing={editing}
       />

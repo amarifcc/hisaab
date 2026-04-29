@@ -6,13 +6,14 @@ import { cn } from '@/lib/utils'
 
 type PersonType = 'owner' | 'contractor' | 'employee' | 'supplier'
 
-interface Person { id: string; name: string; person_type: PersonType }
+interface Person { id: string; name: string; person_type: PersonType; part_id?: string | null }
+interface Part { id: string; name: string; color: string }
 
 const TYPE_OPTIONS: { value: PersonType; label: string; color: string; bg: string }[] = [
-  { value: 'owner',      label: 'Owner',      color: 'text-blue-600',   bg: 'bg-blue-50'   },
-  { value: 'contractor', label: 'Contractor',  color: 'text-slate-600',  bg: 'bg-slate-100' },
-  { value: 'employee',   label: 'Employee',    color: 'text-amber-600',  bg: 'bg-amber-50'  },
-  { value: 'supplier',   label: 'Supplier',    color: 'text-emerald-600',bg: 'bg-emerald-50'},
+  { value: 'owner',      label: 'Owner',      color: 'text-blue-600',    bg: 'bg-blue-50'   },
+  { value: 'contractor', label: 'Contractor',  color: 'text-slate-600',   bg: 'bg-slate-100' },
+  { value: 'employee',   label: 'Employee',    color: 'text-amber-600',   bg: 'bg-amber-50'  },
+  { value: 'supplier',   label: 'Supplier',    color: 'text-emerald-600', bg: 'bg-emerald-50'},
 ]
 
 function typeStyle(t: PersonType) {
@@ -33,36 +34,59 @@ function TypeSelect({ value, onChange }: { value: PersonType; onChange: (v: Pers
   )
 }
 
-export default function PeopleManager({ initialPeople }: { initialPeople: Person[] }) {
+function PartSelect({ value, onChange, parts }: { value: string; onChange: (v: string) => void; parts: Part[] }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-[inherit]"
+    >
+      <option value="">Select project part…</option>
+      {parts.map(p => (
+        <option key={p.id} value={p.id}>{p.name}</option>
+      ))}
+    </select>
+  )
+}
+
+export default function PeopleManager({ initialPeople, parts }: { initialPeople: Person[]; parts: Part[] }) {
   const [people, setPeople] = useState(initialPeople)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editType, setEditType] = useState<PersonType>('contractor')
+  const [editPartId, setEditPartId] = useState('')
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<PersonType>('contractor')
+  const [newPartId, setNewPartId] = useState('')
   const [error, setError] = useState('')
 
   async function save(id: string) {
     if (!editName.trim()) return
+    if (editType === 'owner' && !editPartId) { setError('Select a project part for this owner'); return }
+    setError('')
     const res = await fetch('/api/people', {
       method: 'PUT',
-      body: JSON.stringify({ id, name: editName, person_type: editType }),
+      body: JSON.stringify({ id, name: editName, person_type: editType, part_id: editPartId || null }),
       headers: { 'Content-Type': 'application/json' },
     })
     if (res.ok) {
       const updated = await res.json()
       setPeople(prev => prev.map(p => p.id === id ? updated : p).sort((a, b) => a.name.localeCompare(b.name)))
       setEditingId(null)
+    } else {
+      const d = await res.json()
+      setError(d.error || 'Failed to save')
     }
   }
 
   async function add() {
     if (!newName.trim()) return
+    if (newType === 'owner' && !newPartId) { setError('Select a project part for this owner'); return }
     setError('')
     const res = await fetch('/api/people', {
       method: 'POST',
-      body: JSON.stringify({ name: newName, person_type: newType }),
+      body: JSON.stringify({ name: newName, person_type: newType, part_id: newPartId || null }),
       headers: { 'Content-Type': 'application/json' },
     })
     if (res.ok) {
@@ -70,6 +94,7 @@ export default function PeopleManager({ initialPeople }: { initialPeople: Person
       setPeople(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)))
       setNewName('')
       setNewType('contractor')
+      setNewPartId('')
       setAdding(false)
     } else {
       const d = await res.json()
@@ -87,13 +112,17 @@ export default function PeopleManager({ initialPeople }: { initialPeople: Person
     if (res.ok) setPeople(prev => prev.filter(p => p.id !== id))
   }
 
-  const groups = TYPE_OPTIONS.map(o => ({
-    ...o,
-    people: people.filter(p => p.person_type === o.value),
-  })).filter(g => g.people.length > 0 || false)
+  function startEdit(p: Person) {
+    setEditingId(p.id)
+    setEditName(p.name)
+    setEditType(p.person_type)
+    setEditPartId(p.part_id ?? '')
+    setError('')
+  }
 
   function renderPerson(p: Person) {
     const style = typeStyle(p.person_type)
+    const assignedPart = parts.find(pt => pt.id === p.part_id)
     return (
       <div key={p.id} className="bg-white rounded-2xl border border-slate-100 px-4 py-3.5 shadow-sm">
         {editingId === p.id ? (
@@ -109,11 +138,15 @@ export default function PeopleManager({ initialPeople }: { initialPeople: Person
               <button onClick={() => save(p.id)} className="w-8 h-8 rounded-full bg-blue-700 flex items-center justify-center">
                 <Check size={14} className="text-white" />
               </button>
-              <button onClick={() => setEditingId(null)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+              <button onClick={() => { setEditingId(null); setError('') }} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
                 <X size={14} className="text-slate-500" />
               </button>
             </div>
-            <TypeSelect value={editType} onChange={setEditType} />
+            <TypeSelect value={editType} onChange={v => { setEditType(v); if (v !== 'owner') setEditPartId('') }} />
+            {editType === 'owner' && (
+              <PartSelect value={editPartId} onChange={setEditPartId} parts={parts} />
+            )}
+            {error && editingId === p.id && <p className="text-xs text-red-500 ml-1">{error}</p>}
           </div>
         ) : (
           <div className="flex items-center justify-between">
@@ -123,16 +156,20 @@ export default function PeopleManager({ initialPeople }: { initialPeople: Person
               </div>
               <div>
                 <p className="text-sm font-medium text-slate-900">{p.name}</p>
-                <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', style.bg, style.color)}>
-                  {style.label}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                  <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', style.bg, style.color)}>
+                    {style.label}
+                  </span>
+                  {assignedPart && (
+                    <span className="text-xs px-1.5 py-0.5 rounded text-white font-medium" style={{ backgroundColor: assignedPart.color }}>
+                      {assignedPart.name}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => { setEditingId(p.id); setEditName(p.name); setEditType(p.person_type) }}
-                className="text-slate-400 active:text-blue-600 p-1"
-              >
+              <button onClick={() => startEdit(p)} className="text-slate-400 active:text-blue-600 p-1">
                 <Pencil size={15} />
               </button>
               <button onClick={() => remove(p.id, p.name)} className="text-slate-400 active:text-red-600 p-1">
@@ -193,7 +230,10 @@ export default function PeopleManager({ initialPeople }: { initialPeople: Person
               <X size={14} className="text-slate-500" />
             </button>
           </div>
-          <TypeSelect value={newType} onChange={setNewType} />
+          <TypeSelect value={newType} onChange={v => { setNewType(v); if (v !== 'owner') setNewPartId('') }} />
+          {newType === 'owner' && (
+            <PartSelect value={newPartId} onChange={setNewPartId} parts={parts} />
+          )}
           {error && <p className="text-xs text-red-500 ml-1">{error}</p>}
         </div>
       )}

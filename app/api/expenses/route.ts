@@ -45,7 +45,12 @@ export async function POST(req: Request) {
     performed_by: user.id,
   })
 
-  return NextResponse.json(expense)
+  const { data: enriched } = await supabase
+    .from('expenses')
+    .select('*, categories(*), expense_allocations(*, project_parts(*))')
+    .eq('id', expense.id)
+    .single()
+  return NextResponse.json(enriched ?? expense)
 }
 
 export async function PUT(req: Request) {
@@ -82,7 +87,12 @@ export async function PUT(req: Request) {
     performed_by: user.id,
   })
 
-  return NextResponse.json(data)
+  const { data: enriched } = await supabase
+    .from('expenses')
+    .select('*, categories(*), expense_allocations(*, project_parts(*))')
+    .eq('id', id)
+    .single()
+  return NextResponse.json(enriched ?? data)
 }
 
 export async function DELETE(req: Request) {

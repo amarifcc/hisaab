@@ -2,22 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { cn, amountHint } from '@/lib/utils'
+import { amountHint } from '@/lib/utils'
 import PersonPicker from '@/components/PersonPicker'
-import type { ProjectPart, Transfer } from '@/lib/types'
+import type { Transfer } from '@/lib/types'
 
 interface Props {
   open: boolean
   onClose: () => void
-  onSaved: () => void
-  parts: ProjectPart[]
+  onSaved: (data: any) => void
   editing?: Transfer | null
 }
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-export default function TransferSheet({ open, onClose, onSaved, parts, editing }: Props) {
-  const [partId, setPartId] = useState('')
+export default function TransferSheet({ open, onClose, onSaved, editing }: Props) {
   const [fromPerson, setFromPerson] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(today())
@@ -27,41 +25,40 @@ export default function TransferSheet({ open, onClose, onSaved, parts, editing }
 
   useEffect(() => {
     if (editing) {
-      setPartId(editing.part_id)
       setFromPerson(editing.from_person ?? '')
       setAmount(String(editing.amount))
       setDate(editing.date)
       setNotes(editing.notes ?? '')
     } else {
-      setPartId(parts[0]?.id ?? '')
       setFromPerson('')
       setAmount('')
       setDate(today())
       setNotes('')
     }
     setError('')
-  }, [editing, open, parts])
+  }, [editing, open])
 
   async function handleSave() {
-    if (!partId || !amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       setError('Enter a valid amount')
       return
     }
     if (!fromPerson.trim()) {
-      setError('Enter who this transfer is from')
+      setError('Select who this transfer is from')
       return
     }
     setLoading(true)
     setError('')
     const method = editing ? 'PUT' : 'POST'
     const body = editing
-      ? { id: editing.id, part_id: partId, from_person: fromPerson, amount: Number(amount), date, notes }
-      : { part_id: partId, from_person: fromPerson, amount: Number(amount), date, notes }
+      ? { id: editing.id, from_person: fromPerson, amount: Number(amount), date, notes }
+      : { from_person: fromPerson, amount: Number(amount), date, notes }
 
     const res = await fetch('/api/transfers', { method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
     setLoading(false)
-    if (!res.ok) { setError('Failed to save'); return }
-    onSaved()
+    if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed to save'); return }
+    const data = await res.json()
+    onSaved(data)
     onClose()
   }
 
@@ -76,29 +73,15 @@ export default function TransferSheet({ open, onClose, onSaved, parts, editing }
           <button onClick={onClose}><X size={20} className="text-slate-400" /></button>
         </div>
 
-        {/* Part selector */}
+        {/* From person (required) */}
         <div>
-          <label className="text-xs font-medium text-slate-500 mb-1 block">Floor / Part</label>
-          <div className="flex gap-2 flex-wrap">
-            {parts.map(p => (
-              <button
-                key={p.id}
-                onClick={() => setPartId(p.id)}
-                className={cn(
-                  'px-4 py-2 rounded-xl text-sm font-medium border transition-colors',
-                  partId === p.id ? 'text-white border-transparent' : 'bg-white border-slate-200 text-slate-600'
-                )}
-                style={partId === p.id ? { backgroundColor: p.color, borderColor: p.color } : {}}
-              >
-                {p.name}
-              </button>
-            ))}
-          </div>
+          <label className="text-xs font-medium text-slate-500 mb-1 block">From *</label>
+          <PersonPicker value={fromPerson} onChange={setFromPerson} placeholder="Select owner…" personType="owner" />
         </div>
 
         {/* Amount */}
         <div>
-          <label className="text-xs font-medium text-slate-500 mb-1 block">Amount (PKR)</label>
+          <label className="text-xs font-medium text-slate-500 mb-1 block">Amount (PKR) *</label>
           <div className="relative">
             <input
               type="number"
@@ -114,12 +97,6 @@ export default function TransferSheet({ open, onClose, onSaved, parts, editing }
               </span>
             )}
           </div>
-        </div>
-
-        {/* From person (required) */}
-        <div>
-          <label className="text-xs font-medium text-slate-500 mb-1 block">From *</label>
-          <PersonPicker value={fromPerson} onChange={setFromPerson} placeholder="Select owner or type…" personType="owner" />
         </div>
 
         {/* Notes */}

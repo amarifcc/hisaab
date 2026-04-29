@@ -5,7 +5,6 @@ import { Plus, Pencil, Trash2, ArrowDownLeft, ChevronDown } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import TransferSheet from '@/components/TransferSheet'
 import type { ProjectPart, Transfer } from '@/lib/types'
-import { useRouter } from 'next/navigation'
 
 type TransferWithPart = Transfer & { project_parts: ProjectPart }
 
@@ -24,8 +23,6 @@ export default function TransfersList({ initialTransfers, parts, isSupervisor }:
   const [filterPart, setFilterPart] = useState<string>('all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-
   useEffect(() => {
     const saved = localStorage.getItem(PART_FILTER_KEY)
     if (saved) setFilterPart(saved)
@@ -51,11 +48,18 @@ export default function TransfersList({ initialTransfers, parts, isSupervisor }:
   const filtered = filterPart === 'all' ? transfers : transfers.filter(t => t.part_id === filterPart)
   const totalFiltered = filtered.reduce((s, t) => s + t.amount, 0)
 
+  function handleSaved(data: any) {
+    if (editing) {
+      setTransfers(prev => prev.map(t => t.id === data.id ? data : t))
+    } else {
+      setTransfers(prev => [data, ...prev])
+    }
+  }
+
   async function handleDelete(id: string) {
     if (!confirm('Delete this transfer?')) return
-    await fetch('/api/transfers', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
-    setTransfers(prev => prev.filter(t => t.id !== id))
-    router.refresh()
+    const res = await fetch('/api/transfers', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
+    if (res.ok) setTransfers(prev => prev.filter(t => t.id !== id))
   }
 
   return (
@@ -158,8 +162,7 @@ export default function TransfersList({ initialTransfers, parts, isSupervisor }:
       <TransferSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onSaved={() => router.refresh()}
-        parts={parts}
+        onSaved={handleSaved}
         editing={editing}
       />
     </div>

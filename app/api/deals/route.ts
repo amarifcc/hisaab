@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     date: date || new Date().toISOString().slice(0, 10),
     notes: notes || null,
     created_by: user.id,
-  }).select().single()
+  }).select('*, project_parts(*)').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -55,7 +55,7 @@ export async function PUT(req: Request) {
     date,
     notes: notes || null,
     updated_at: new Date().toISOString(),
-  }).eq('id', id).select().single()
+  }).eq('id', id).select('*, project_parts(*)').single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

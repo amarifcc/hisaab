@@ -32,12 +32,14 @@ export async function POST(req: Request) {
   if (!user || (profile as any)?.role !== 'supervisor')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { name, person_type } = await req.json()
+  const { name, person_type, part_id } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: 'Name required' }, { status: 400 })
+  if (person_type === 'owner' && !part_id)
+    return NextResponse.json({ error: 'Owners must be assigned a project part' }, { status: 400 })
 
   const { data, error } = await supabase
     .from('people')
-    .insert({ name: name.trim(), person_type: person_type ?? 'contractor' })
+    .insert({ name: name.trim(), person_type: person_type ?? 'contractor', part_id: part_id || null })
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -49,10 +51,14 @@ export async function PUT(req: Request) {
   if (!user || (profile as any)?.role !== 'supervisor')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, name, person_type } = await req.json()
-  const updates: Record<string, string> = {}
+  const { id, name, person_type, part_id } = await req.json()
+  if (person_type === 'owner' && !part_id)
+    return NextResponse.json({ error: 'Owners must be assigned a project part' }, { status: 400 })
+
+  const updates: Record<string, unknown> = {}
   if (name !== undefined) updates.name = name.trim()
   if (person_type !== undefined) updates.person_type = person_type
+  if (part_id !== undefined) updates.part_id = part_id || null
 
   const { data, error } = await supabase.from('people').update(updates).eq('id', id).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
