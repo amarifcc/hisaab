@@ -124,7 +124,7 @@ export default function PeopleManager({ initialPeople, parts }: { initialPeople:
     const style = typeStyle(p.person_type)
     const assignedPart = parts.find(pt => pt.id === p.part_id)
     return (
-      <div key={p.id} className="bg-white rounded-2xl border border-slate-100 px-4 py-3.5 shadow-sm">
+      <div key={p.id} className="bg-white rounded-xl border border-slate-100 px-3 py-2 shadow-sm">
         {editingId === p.id ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2">
@@ -150,25 +150,25 @@ export default function PeopleManager({ initialPeople, parts }: { initialPeople:
           </div>
         ) : (
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center">
-                <span className="text-sm font-bold text-violet-600">{p.name.charAt(0).toUpperCase()}</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center flex-shrink-0">
+                <span className="text-xs font-bold text-violet-600">{p.name.charAt(0).toUpperCase()}</span>
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-900">{p.name}</p>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900 truncate">{p.name}</p>
                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                  <span className={cn('text-xs px-1.5 py-0.5 rounded font-medium', style.bg, style.color)}>
+                  <span className={cn('text-[11px] px-1.5 py-0.5 rounded font-medium leading-none', style.bg, style.color)}>
                     {style.label}
                   </span>
                   {assignedPart && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white font-medium" style={{ backgroundColor: assignedPart.color }}>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded text-white font-medium leading-none" style={{ backgroundColor: assignedPart.color }}>
                       {assignedPart.name}
                     </span>
                   )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button onClick={() => startEdit(p)} className="text-slate-400 active:text-blue-600 p-1">
                 <Pencil size={15} />
               </button>
@@ -184,14 +184,25 @@ export default function PeopleManager({ initialPeople, parts }: { initialPeople:
 
   return (
     <div className="px-4 pt-5 pb-6">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-9 h-9 bg-violet-50 rounded-xl flex items-center justify-center">
-          <Users size={18} className="text-violet-600" />
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 bg-violet-50 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Users size={18} className="text-violet-600" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-slate-900">People</h1>
+            <p className="text-xs text-slate-400 truncate">Owners · Contractors · Employees · Suppliers</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-lg font-bold text-slate-900">People</h1>
-          <p className="text-xs text-slate-400">Owners · Contractors · Employees · Suppliers</p>
-        </div>
+        {!adding && (
+          <button
+            onClick={() => setAdding(true)}
+            className="w-9 h-9 rounded-xl bg-blue-700 text-white flex items-center justify-center shadow-sm flex-shrink-0"
+            aria-label="Add person"
+          >
+            <Plus size={18} />
+          </button>
+        )}
       </div>
 
       {people.length === 0 && !adding && (
@@ -205,15 +216,18 @@ export default function PeopleManager({ initialPeople, parts }: { initialPeople:
         const group = people.filter(p => p.person_type === o.value)
         if (group.length === 0) return null
         return (
-          <div key={o.value} className="mb-4">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{o.label}s</p>
-            <div className="space-y-2">{group.map(renderPerson)}</div>
+          <div key={o.value} className="mb-3">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{o.label}s</p>
+              <span className="text-[11px] font-semibold text-slate-300">{group.length}</span>
+            </div>
+            <div className="space-y-1.5">{group.map(renderPerson)}</div>
           </div>
         )
       })}
 
       {adding && (
-        <div className="bg-white rounded-2xl border-2 border-blue-200 px-4 py-3.5 mb-4 space-y-2">
+        <div className="bg-white rounded-xl border-2 border-blue-200 px-3 py-3 mb-4 space-y-2">
           <div className="flex items-center gap-2">
             <input
               value={newName}
@@ -236,15 +250,6 @@ export default function PeopleManager({ initialPeople, parts }: { initialPeople:
           )}
           {error && <p className="text-xs text-red-500 ml-1">{error}</p>}
         </div>
-      )}
-
-      {!adding && (
-        <button
-          onClick={() => setAdding(true)}
-          className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-slate-200 rounded-2xl text-sm text-slate-500 font-medium active:border-blue-400 active:text-blue-600 transition-colors"
-        >
-          <Plus size={16} /> Add Person
-        </button>
       )}
     </div>
   )

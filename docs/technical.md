@@ -20,10 +20,10 @@
 app/
   (auth)/login/         — Login page
   (app)/                — Authenticated shell with bottom nav
-    page.tsx            — Dashboard (server, fetches transfers + expenses + allocations)
-    DashboardView.tsx   — Dashboard client component
+    page.tsx            — Redirects to reports
     transfers/          — Transfers list page
     expenses/           — Expenses list page
+    transactions/       — Combined transfer + expense ledger
     deals/              — Deals list page
     reports/            — Reports page (server fetches all data)
     settings/
@@ -214,7 +214,7 @@ Each page persists its part filter in localStorage:
 
 | Page | Key |
 |------|-----|
-| Dashboard | `hisab_filter_part` |
+| Transactions | `hisab_transactions_filter_part` |
 | Expenses | `hisab_expenses_filter_part` |
 | Transfers | `hisab_transfers_filter_part` |
 | Deals | `hisab_deals_filter_part` |

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Menu, X, Activity, ArrowLeftRight, Receipt,
+  Menu, X, ListOrdered,
   BarChart2, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, Handshake
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -13,9 +13,7 @@ import { useRouter } from 'next/navigation'
 
 const mainNav = [
   { href: '/reports',  icon: BarChart2,      label: 'Reports'   },
-  { href: '/activity', icon: Activity,       label: 'Activity'  },
-  { href: '/transfers',icon: ArrowLeftRight, label: 'Transfers' },
-  { href: '/expenses', icon: Receipt,        label: 'Expenses'  },
+  { href: '/transactions', icon: ListOrdered, label: 'Transactions' },
   { href: '/deals',    icon: Handshake,      label: 'Deals'     },
 ]
 

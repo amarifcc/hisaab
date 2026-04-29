@@ -690,7 +690,7 @@ function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
         )}
 
         {catBreakdown.length === 0 && spent === 0 && deposited === 0 && (
-          <p className="text-center text-slate-400 text-sm py-8">No activity for this part</p>
+          <p className="text-center text-slate-400 text-sm py-8">No transactions for this part</p>
         )}
       </div>
     )

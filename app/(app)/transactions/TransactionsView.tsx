@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { ArrowDownLeft, TrendingDown, ChevronDown, ChevronUp, Clock, Pencil, Trash2, Search, X } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, TrendingDown, ChevronDown, ChevronUp, Clock, Pencil, Trash2, Search, X } from 'lucide-react'
 import { formatPKR, formatDate, fmtRef, cn } from '@/lib/utils'
 import TransferSheet from '@/components/TransferSheet'
 import ExpenseSheet from '@/components/ExpenseSheet'
@@ -10,6 +10,7 @@ import type { ProjectPart, Category } from '@/lib/types'
 type AnyTransfer = Record<string, any>
 type AnyExpense = Record<string, any>
 type AnyAllocation = { part_id: string; amount: number }
+type TransactionFilter = 'all' | 'expenses' | 'transfers'
 
 interface Props {
   parts: ProjectPart[]
@@ -18,16 +19,20 @@ interface Props {
   isSupervisor: boolean
 }
 
-const FILTER_KEY = 'hisab_filter_part'
+const FILTER_KEY = 'hisab_transactions_filter_part'
+const LEGACY_FILTER_KEY = 'hisab_filter_part'
 
-export default function ActivityView({ parts, transfers: initialTransfers, expenses: initialExpenses, isSupervisor }: Props) {
+export default function TransactionsView({ parts, transfers: initialTransfers, expenses: initialExpenses, isSupervisor }: Props) {
   const [localTransfers, setLocalTransfers] = useState(initialTransfers)
   const [localExpenses, setLocalExpenses] = useState(initialExpenses)
   const [filterPart, setFilterPart] = useState<string>('all')
+  const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('all')
   const [filterOpen, setFilterOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [sortByLog, setSortByLog] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const filterRef = useRef<HTMLDivElement>(null)
+  const addRef = useRef<HTMLDivElement>(null)
 
   const [search, setSearch] = useState('')
 
@@ -38,7 +43,7 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
-    const saved = localStorage.getItem(FILTER_KEY)
+    const saved = localStorage.getItem(FILTER_KEY) ?? localStorage.getItem(LEGACY_FILTER_KEY)
     if (saved) setFilterPart(saved)
   }, [])
 
@@ -50,6 +55,9 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
     function handler(e: MouseEvent) {
       if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
         setFilterOpen(false)
+      }
+      if (addRef.current && !addRef.current.contains(e.target as Node)) {
+        setAddOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -85,11 +93,19 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
   }
 
   function handleTransferSaved(data: any) {
-    setLocalTransfers(prev => prev.map(t => t.id === data.id ? data : t))
+    if (editingTransfer) {
+      setLocalTransfers(prev => prev.map(t => t.id === data.id ? data : t))
+    } else {
+      setLocalTransfers(prev => [data, ...prev])
+    }
   }
 
   function handleExpenseSaved(data: any) {
-    setLocalExpenses(prev => prev.map(e => e.id === data.id ? data : e))
+    if (editingExpense) {
+      setLocalExpenses(prev => prev.map(e => e.id === data.id ? data : e))
+    } else {
+      setLocalExpenses(prev => [data, ...prev])
+    }
   }
 
   const shownPart = filterPart === 'all' ? null : parts.find(p => p.id === filterPart)
@@ -105,7 +121,12 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
   ).map(e => ({ _type: 'expense' as const, _date: e.date, _created: e.created_at, ...e }))
 
   const q = search.trim().toLowerCase()
-  const recent = [...filteredTransfers, ...filteredExpenses]
+  const combinedItems =
+    transactionFilter === 'expenses' ? filteredExpenses :
+    transactionFilter === 'transfers' ? filteredTransfers :
+    [...filteredTransfers, ...filteredExpenses]
+
+  const recent = combinedItems
     .sort((a, b) => {
       const av = sortByLog ? a._created : a._date
       const bv = sortByLog ? b._created : b._date
@@ -128,11 +149,41 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
 
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Activity</h1>
+          <h1 className="text-xl font-bold text-slate-900">Transactions</h1>
           <p className="text-xs text-slate-400">{recent.length} entries</p>
         </div>
 
         <div className="flex items-center gap-2">
+          {isSupervisor && (
+            <div className="relative" ref={addRef}>
+              <button
+                onClick={() => setAddOpen(o => !o)}
+                className="flex items-center gap-1.5 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm"
+              >
+                <Plus size={14} />
+                Add
+              </button>
+              {addOpen && (
+                <div className="absolute top-full right-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[170px] overflow-hidden">
+                  <button
+                    onClick={() => { setEditingExpense(null); setExpenseSheetOpen(true); setAddOpen(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <ReceiptText size={15} className="text-rose-500" />
+                    Expense
+                  </button>
+                  <button
+                    onClick={() => { setEditingTransfer(null); setTransferSheetOpen(true); setAddOpen(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    <ArrowDownToLine size={15} className="text-emerald-600" />
+                    Transfer
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             onClick={() => setSortByLog(s => !s)}
             title={sortByLog ? 'Sorted by log date' : 'Sorted by occurrence date'}
@@ -175,6 +226,23 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
             )}
           </div>
         </div>
+      </div>
+
+      <div className="flex gap-1.5 mb-4 bg-slate-100 p-1 rounded-xl">
+        {[
+          { id: 'all' as const, label: 'All' },
+          { id: 'expenses' as const, label: 'Expenses' },
+          { id: 'transfers' as const, label: 'Transfers' },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTransactionFilter(t.id)}
+            className={cn('flex-1 py-2 rounded-lg text-xs font-semibold transition-colors',
+              transactionFilter === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* Search */}
@@ -232,6 +300,7 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
                         {t.ref_number ? <span className="font-mono mr-1.5">{fmtRef('TRF', t.ref_number)}</span> : null}
                         {formatDate(t.date)}
                       </p>
+                      {t.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{t.notes}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2 flex-shrink-0">
@@ -288,7 +357,7 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
                       <TrendingDown size={17} className="text-rose-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900 truncate">{e.description || cat?.name || 'Expense'}</p>
+                      <p className="text-sm font-medium text-slate-900 line-clamp-2">{e.description || cat?.name || 'Expense'}</p>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
                         {displayAllocs.map((a: any) => (
                           <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>
@@ -305,6 +374,7 @@ export default function ActivityView({ parts, transfers: initialTransfers, expen
                         {e.ref_number ? <span className="font-mono mr-1.5">{fmtRef('EXP', e.ref_number)}</span> : null}
                         {formatDate(e.date)}{e.paid_to ? ` · ${e.paid_to}` : ''}
                       </p>
+                      {e.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{e.notes}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2 flex-shrink-0">

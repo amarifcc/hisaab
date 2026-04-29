@@ -46,11 +46,8 @@ A contacts list used for autocomplete on `from_person` (transfers) and `paid_to`
 
 ## Pages
 
-### Dashboard (Home)
-- Big balance card: total deposited minus total spent (or per-part if filtered)
-- Per-part mini cards in "All" view — tap to drill into a part
-- Recent Activity feed: transfers and expenses merged, sorted by occurrence date by default; a Clock icon toggles to log-date sort
-- FAB (supervisor only): quick-add expense
+### Transactions
+Combined ledger of transfers and expenses. Search by reference, name, description, or notes. The part filter scopes the list, and the Clock icon toggles between occurrence date and log-date sorting.
 
 ### Transfers
 List of money received per owner per part. Sorted by date. Part filter persists in localStorage.
@@ -89,4 +86,4 @@ Basic CRUD for expense categories and project parts (supervisor only).
 
 **Expense splits**: A single expense can be split across multiple parts. The `expense_allocations` table stores the per-part amounts. When a part filter is active, only that part's allocation amount is shown, not the total.
 
-**Part filter persistence**: Each page saves its active part filter in localStorage under a page-specific key (`hisab_filter_part`, `hisab_expenses_filter_part`, `hisab_deals_filter_part`, `hisab_transfers_filter_part`, `hisab_reports_filter_part`).
+**Part filter persistence**: Each page saves its active part filter in localStorage under a page-specific key (`hisab_transactions_filter_part`, `hisab_expenses_filter_part`, `hisab_deals_filter_part`, `hisab_transfers_filter_part`, `hisab_reports_filter_part`).
