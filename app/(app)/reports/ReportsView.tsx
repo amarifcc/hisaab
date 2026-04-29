@@ -2,7 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
-import { Share2, Users, Tag, Layers, Handshake, ChevronDown, Check } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check } from 'lucide-react'
+import ExpenseSheet from '@/components/ExpenseSheet'
+import TransferSheet from '@/components/TransferSheet'
+import DealSheet from '@/components/DealSheet'
 import type { ProjectPart, Category, Transfer, Expense, ExpenseAllocation, Deal } from '@/lib/types'
 
 type TransferWithPart = Transfer & { project_parts: ProjectPart }
@@ -26,15 +29,29 @@ const PART_FILTER_KEY = 'hisab_reports_filter_part'
 
 export default function ReportsView({ parts, transfers, expenses, categories, deals, paidMap }: Props) {
   const [tab, setTab] = useState<Tab>('parts')
+  const [reportTransfers, setReportTransfers] = useState(transfers)
+  const [reportExpenses, setReportExpenses] = useState(expenses)
+  const [reportDeals, setReportDeals] = useState(deals)
+  const [reportPaidMap, setReportPaidMap] = useState(paidMap)
   const [filterPart, setFilterPart] = useState<string>('all')
   useEffect(() => {
     const saved = localStorage.getItem(PART_FILTER_KEY)
     if (saved) setFilterPart(saved)
   }, [])
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [exporting, setExporting] = useState(false)
-  const reportRef = useRef<HTMLDivElement>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [sheet, setSheet] = useState<null | 'expense' | 'transfer' | 'deal'>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const addRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setDropdownOpen(false)
+      if (addRef.current && !addRef.current.contains(e.target as Node)) setAddOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   function changePartFilter(val: string) {
     setFilterPart(val)
@@ -42,13 +59,13 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
     setDropdownOpen(false)
   }
 
-  const scopedExpenses = expenses.filter(e =>
+  const scopedExpenses = reportExpenses.filter(e =>
     filterPart === 'all' || e.expense_allocations.some(a => a.part_id === filterPart)
   )
-  const scopedTransfers = transfers.filter(t =>
+  const scopedTransfers = reportTransfers.filter(t =>
     filterPart === 'all' || t.part_id === filterPart
   )
-  const scopedDeals = deals.filter(d =>
+  const scopedDeals = reportDeals.filter(d =>
     filterPart === 'all' || d.part_id === filterPart
   )
 
@@ -59,30 +76,22 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
 
   const selectedPart = parts.find(p => p.id === filterPart)
 
-  async function handleShare() {
-    setExporting(true)
-    try {
-      const { default: html2canvas } = await import('html2canvas')
-      if (!reportRef.current) return
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2, useCORS: true, backgroundColor: '#f8fafc', logging: false,
-      })
-      canvas.toBlob(async (blob) => {
-        if (!blob) return
-        const file = new File([blob], 'hisaab-report.png', { type: 'image/png' })
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: 'Hisaab Report' })
-        } else {
-          const url = URL.createObjectURL(blob)
-          const a = document.createElement('a')
-          a.href = url; a.download = 'hisaab-report.png'
-          document.body.appendChild(a); a.click()
-          document.body.removeChild(a); URL.revokeObjectURL(url)
-        }
-      }, 'image/png')
-    } finally {
-      setExporting(false)
-    }
+  function openSheet(nextSheet: 'expense' | 'transfer' | 'deal') {
+    setSheet(nextSheet)
+    setAddOpen(false)
+  }
+
+  function addExpense(data: ExpenseWithDetails) {
+    setReportExpenses(prev => [data, ...prev])
+    if (!data.paid_to) return
+
+    setReportPaidMap(prev => {
+      const next = { ...prev, [data.paid_to!]: { ...(prev[data.paid_to!] ?? {}) } }
+      for (const allocation of data.expense_allocations ?? []) {
+        next[data.paid_to!][allocation.part_id] = (next[data.paid_to!][allocation.part_id] ?? 0) + Number(allocation.amount)
+      }
+      return next
+    })
   }
 
   const TABS = [
@@ -126,14 +135,40 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
               </div>
             )}
           </div>
-          <button
-            onClick={handleShare}
-            disabled={exporting}
-            className="flex items-center gap-1.5 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
-          >
-            <Share2 size={14} />
-            {exporting ? 'Sharing…' : 'Share'}
-          </button>
+          <div className="relative" ref={addRef}>
+            <button
+              onClick={() => setAddOpen(o => !o)}
+              className="flex items-center gap-1.5 bg-blue-700 text-white px-3 py-2 rounded-xl text-sm font-medium shadow-sm"
+            >
+              <Plus size={14} />
+              Add
+            </button>
+            {addOpen && (
+              <div className="absolute top-full right-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[170px] overflow-hidden">
+                <button
+                  onClick={() => openSheet('expense')}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <ReceiptText size={15} className="text-rose-500" />
+                  Expense
+                </button>
+                <button
+                  onClick={() => openSheet('transfer')}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <ArrowDownToLine size={15} className="text-emerald-600" />
+                  Transfer
+                </button>
+                <button
+                  onClick={() => openSheet('deal')}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Handshake size={15} className="text-blue-600" />
+                  Deal
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -150,17 +185,36 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
       </div>
 
       {/* Report content */}
-      <div ref={reportRef} className="space-y-2.5">
+      <div className="space-y-2.5">
         {tab === 'parts' &&
           <PartsReport transfers={scopedTransfers} expenses={scopedExpenses} parts={parts} categories={categories} selectedPart={selectedPart} />}
         {tab === 'deals' &&
-          <DealsReport deals={scopedDeals} paidMap={paidMap} filterPart={filterPart} selectedPart={selectedPart} />}
+          <DealsReport deals={scopedDeals} paidMap={reportPaidMap} filterPart={filterPart} selectedPart={selectedPart} />}
         {tab === 'categories' &&
           <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} />}
         {tab === 'people' &&
           <PeopleReport expenses={scopedExpenses} getAmount={getAmount} selectedPart={selectedPart} />}
         <p className="text-center text-xs text-slate-300 pt-1">Hisaab · {new Date().toLocaleDateString('en-PK')}</p>
       </div>
+
+      <ExpenseSheet
+        open={sheet === 'expense'}
+        onClose={() => setSheet(null)}
+        onSaved={addExpense}
+        parts={parts}
+        categories={categories}
+      />
+      <TransferSheet
+        open={sheet === 'transfer'}
+        onClose={() => setSheet(null)}
+        onSaved={(data) => setReportTransfers(prev => [data, ...prev])}
+      />
+      <DealSheet
+        open={sheet === 'deal'}
+        onClose={() => setSheet(null)}
+        onSaved={(data) => setReportDeals(prev => [data, ...prev])}
+        parts={parts}
+      />
     </div>
   )
 }

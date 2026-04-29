@@ -134,7 +134,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
 
   const selectedCatName = categories.find(c => c.id === categoryId)?.name ?? ''
   const isSalary = /salary/i.test(selectedCatName)
-  const paidToType: 'employee' | 'contractor' = isSalary ? 'employee' : 'contractor'
+  const paidToType: 'employee' | Array<'contractor' | 'supplier'> = isSalary ? 'employee' : ['contractor', 'supplier']
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -298,7 +298,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
             <PersonPicker
               value={paidTo}
               onChange={v => { setPaidTo(v); setFe(f => ({ ...f, paidTo: false })) }}
-              placeholder={isSalary ? 'Select employee…' : 'Select contractor or type…'}
+              placeholder={isSalary ? 'Select employee…' : 'Select contractor/supplier or type…'}
               personType={paidToType}
               hasError={fe.paidTo}
             />
