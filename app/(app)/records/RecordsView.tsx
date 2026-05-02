@@ -68,6 +68,7 @@ export default function RecordsView({ parts, transfers, expenses, deals, paidMap
           paidMap={paidMap}
           isSupervisor={isSupervisor}
           embedded
+          payments={expenses as unknown as Parameters<typeof DealsList>[0]['payments']}
         />
       )}
     </div>

@@ -1,12 +1,21 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus, Search, X, Flag, CheckCircle2, Clock3 } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus, Search, X, Flag, CheckCircle2, Clock3, Receipt } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import DealSheet from '@/components/DealSheet'
 import DealRevisionSheet from '@/components/DealRevisionSheet'
 import type { ProjectPart, DealWithPart } from '@/lib/types'
+
+interface PaymentRow {
+  id: string
+  description: string
+  date: string
+  paid_to: string | null
+  notes: string | null
+  expense_allocations: { part_id: string; amount: number }[]
+}
 
 interface Props {
   initialDeals: DealWithPart[]
@@ -14,16 +23,18 @@ interface Props {
   paidMap: Record<string, Record<string, number>>
   isSupervisor: boolean
   embedded?: boolean
+  payments?: PaymentRow[]
 }
 
 const PART_FILTER_KEY = 'hisab_deals_filter_part'
 
-export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, embedded = false }: Props) {
+export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, embedded = false, payments }: Props) {
   const [deals, setDeals] = useState(initialDeals)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<DealWithPart | null>(null)
   const [revisionDeal, setRevisionDeal] = useState<DealWithPart | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set())
   const [contractorQuery, setContractorQuery] = useState('')
   const [filterPart, setFilterPart] = useState<string>(() =>
     typeof window === 'undefined' ? 'all' : localStorage.getItem(PART_FILTER_KEY) || 'all'
@@ -99,6 +110,15 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
 
   function toggleGroup(key: string) {
     setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  function togglePayments(key: string) {
+    setExpandedPayments(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -242,6 +262,10 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
           const StatusIcon = status.icon
           const groupKey = `${group.person}-${group.partId}`
           const isExpanded = expandedGroups.has(groupKey)
+          const isPaymentsExpanded = expandedPayments.has(groupKey)
+          const groupPayments = (payments ?? []).filter(
+            e => e.paid_to === group.person && e.expense_allocations.some(a => a.part_id === group.partId)
+          ).sort((a, b) => b.date.localeCompare(a.date))
           return (
             <div key={groupKey} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
               <button
@@ -321,6 +345,45 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
                       </div>
                     </div>
                   ))}
+
+                  {groupPayments.length > 0 && (
+                    <div className="border-t border-slate-100">
+                      <button
+                        onClick={() => togglePayments(groupKey)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <Receipt size={13} />
+                          Payments ({groupPayments.length})
+                        </span>
+                        <ChevronDown size={12} className={cn('transition-transform', isPaymentsExpanded && 'rotate-180')} />
+                      </button>
+
+                      {isPaymentsExpanded && (
+                        <div className="divide-y divide-slate-50 pb-1">
+                          {groupPayments.map(e => {
+                            const alloc = e.expense_allocations.find(a => a.part_id === group.partId)
+                            return (
+                              <div key={e.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="w-7 h-7 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                                    <Receipt size={13} className="text-emerald-600" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-slate-700 truncate">{e.description}</p>
+                                    <p className="text-[11px] text-slate-400">{formatDate(e.date)}{e.notes ? ` · ${e.notes}` : ''}</p>
+                                  </div>
+                                </div>
+                                <span className="text-xs font-bold text-emerald-600 flex-shrink-0">
+                                  PKR {formatPKR(alloc?.amount ?? 0)}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
-import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3 } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
@@ -215,7 +215,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
         {tab === 'parts' &&
           <PartsReport transfers={scopedTransfers} expenses={scopedExpenses} parts={parts} categories={categories} selectedPart={selectedPart} />}
         {tab === 'deals' &&
-          <DealsReport deals={scopedDeals} paidMap={reportPaidMap} selectedPart={selectedPart} isSupervisor={isSupervisor} onAddScope={setRevisionDeal} onEditDeal={(deal) => { setEditingDeal(deal); setSheet('deal') }} />}
+          <DealsReport deals={scopedDeals} expenses={reportExpenses} paidMap={reportPaidMap} selectedPart={selectedPart} isSupervisor={isSupervisor} onAddScope={setRevisionDeal} onEditDeal={(deal) => { setEditingDeal(deal); setSheet('deal') }} />}
         {tab === 'categories' &&
           <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} />}
         {tab === 'people' &&
@@ -844,8 +844,9 @@ function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
 
 // ── Deals Report ──────────────────────────────────────────────────────────────
 
-function DealsReport({ deals, paidMap, selectedPart, isSupervisor, onAddScope, onEditDeal }: {
+function DealsReport({ deals, expenses, paidMap, selectedPart, isSupervisor, onAddScope, onEditDeal }: {
   deals: DealWithPart[]
+  expenses: ExpenseWithDetails[]
   paidMap: Record<string, Record<string, number>>
   selectedPart?: ProjectPart
   isSupervisor: boolean
@@ -946,6 +947,7 @@ function DealsReport({ deals, paidMap, selectedPart, isSupervisor, onAddScope, o
             paid={paid}
             remaining={remaining}
             groups={groups}
+            expenses={expenses}
             isSupervisor={isSupervisor}
             onAddScope={onAddScope}
             onEditDeal={onEditDeal}
@@ -956,19 +958,30 @@ function DealsReport({ deals, paidMap, selectedPart, isSupervisor, onAddScope, o
   )
 }
 
-function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, onAddScope, onEditDeal }: {
+function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSupervisor, onAddScope, onEditDeal }: {
   name: string
   agreed: number
   paid: number
   remaining: number
   groups: { part?: ProjectPart; partId: string; agreed: number; paid: number; items: DealWithPart[] }[]
+  expenses: ExpenseWithDetails[]
   isSupervisor: boolean
   onAddScope: (deal: DealWithPart) => void
   onEditDeal: (deal: DealWithPart) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set())
   const status = dealStatus(remaining)
   const StatusIcon = status.icon
+
+  function togglePayments(partId: string) {
+    setExpandedPayments(prev => {
+      const next = new Set(prev)
+      if (next.has(partId)) next.delete(partId)
+      else next.add(partId)
+      return next
+    })
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1000,6 +1013,10 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, o
             const groupRemaining = group.agreed - group.paid
             const groupStatus = dealStatus(groupRemaining)
             const GroupStatusIcon = groupStatus.icon
+            const groupPayments = expenses
+              .filter(e => e.paid_to === name && e.expense_allocations.some(a => a.part_id === group.partId))
+              .sort((a, b) => b.date.localeCompare(a.date))
+            const isPaymentsExpanded = expandedPayments.has(group.partId)
             return (
               <div key={group.partId} className={cn('px-4 py-3', groupIndex > 0 && 'border-t border-slate-100')}>
                 <div className="flex items-center justify-between gap-3 mb-2">
@@ -1053,6 +1070,40 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, o
                     </div>
                   ))}
                 </div>
+
+                {groupPayments.length > 0 && (
+                  <div className="mt-2 -mx-1">
+                    <button
+                      onClick={() => togglePayments(group.partId)}
+                      className="w-full flex items-center justify-between px-1 py-1.5 text-xs font-medium text-slate-500"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Receipt size={12} />
+                        Payments ({groupPayments.length})
+                      </span>
+                      <ChevronDown size={11} className={cn('transition-transform', isPaymentsExpanded && 'rotate-180')} />
+                    </button>
+
+                    {isPaymentsExpanded && (
+                      <div className="space-y-1 mt-0.5">
+                        {groupPayments.map(e => {
+                          const alloc = e.expense_allocations.find(a => a.part_id === group.partId)
+                          return (
+                            <div key={e.id} className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-slate-700 truncate">{e.description}</p>
+                                <p className="text-[11px] text-slate-400">{formatDate(e.date)}{e.notes ? ` · ${e.notes}` : ''}</p>
+                              </div>
+                              <span className="text-xs font-bold text-emerald-600 flex-shrink-0">
+                                PKR {formatPKR(alloc?.amount ?? 0)}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
