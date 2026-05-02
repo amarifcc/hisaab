@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus, Search, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus, Search, X, Flag, CheckCircle2, Clock3 } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import DealSheet from '@/components/DealSheet'
@@ -104,6 +104,31 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
       else next.add(key)
       return next
     })
+  }
+
+  function dealStatus(remaining: number) {
+    if (remaining < 0) {
+      return {
+        label: 'Overpaid',
+        icon: Flag,
+        chip: 'bg-red-50 text-red-600',
+        text: 'text-red-500',
+      }
+    }
+    if (remaining === 0) {
+      return {
+        label: 'Fully paid',
+        icon: CheckCircle2,
+        chip: 'bg-emerald-50 text-emerald-600',
+        text: 'text-emerald-600',
+      }
+    }
+    return {
+      label: 'Pending',
+      icon: Clock3,
+      chip: 'bg-amber-50 text-amber-600',
+      text: 'text-amber-600',
+    }
   }
 
   return (
@@ -213,6 +238,8 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
         )}
         {groups.map(group => {
           const remaining = group.agreed - group.paid
+          const status = dealStatus(remaining)
+          const StatusIcon = status.icon
           const groupKey = `${group.person}-${group.partId}`
           const isExpanded = expandedGroups.has(groupKey)
           return (
@@ -236,9 +263,12 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="text-right">
-                      <p className="text-xs text-slate-400">{remaining < 0 ? 'Overpaid' : 'Remaining'}</p>
-                      <p className={cn('text-sm font-bold', remaining < 0 ? 'text-red-500' : 'text-amber-600')}>
-                        {remaining < 0 ? '−' : ''}PKR {formatPKR(Math.abs(remaining))}
+                      <div className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold mb-0.5', status.chip)}>
+                        <StatusIcon size={11} />
+                        {status.label}
+                      </div>
+                      <p className={cn('text-sm font-bold', status.text)}>
+                        {remaining < 0 ? '−' : remaining === 0 ? '' : ''}{remaining === 0 ? 'PKR 0' : `PKR ${formatPKR(Math.abs(remaining))}`}
                       </p>
                     </div>
                     <ChevronDown size={14} className={cn('text-slate-300 transition-transform', isExpanded && 'rotate-180')} />

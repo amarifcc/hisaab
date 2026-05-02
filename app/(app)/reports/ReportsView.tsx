@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
-import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil, Wallet, TrendingDown, Scale } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
@@ -282,6 +282,31 @@ function MiniMetric({ icon: Icon, label, value, color, bg }: {
       <p className={cn('text-xs font-bold truncate', color)}>{value}</p>
     </div>
   )
+}
+
+function dealStatus(remaining: number) {
+  if (remaining < 0) {
+    return {
+      label: 'Overpaid',
+      icon: Flag,
+      chip: 'bg-red-50 text-red-600',
+      text: 'text-red-500',
+    }
+  }
+  if (remaining === 0) {
+    return {
+      label: 'Fully paid',
+      icon: CheckCircle2,
+      chip: 'bg-emerald-50 text-emerald-600',
+      text: 'text-emerald-600',
+    }
+  }
+  return {
+    label: 'Pending',
+    icon: Clock3,
+    chip: 'bg-amber-50 text-amber-600',
+    text: 'text-amber-600',
+  }
 }
 
 // ── Multi-select filter dropdown ──────────────────────────────────────────────
@@ -868,6 +893,8 @@ function DealsReport({ deals, paidMap, selectedPart, isSupervisor, onAddScope, o
   const filteredAgreed = visiblePeople.reduce((s, p) => s + p.agreed, 0)
   const filteredPaid = visiblePeople.reduce((s, p) => s + p.paid, 0)
   const filteredRemaining = filteredAgreed - filteredPaid
+  const summaryStatus = dealStatus(filteredRemaining)
+  const SummaryStatusIcon = summaryStatus.icon
 
   const personOptions = people.map(p => ({ id: p.name, label: p.name }))
   const subLabel = selectedPart ? selectedPart.name : 'All Parts'
@@ -894,9 +921,12 @@ function DealsReport({ deals, paidMap, selectedPart, isSupervisor, onAddScope, o
             <p className="text-base font-bold text-emerald-600">PKR {formatPKR(filteredPaid)}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">{filteredRemaining < 0 ? 'Overpaid' : 'Remaining'}</p>
-            <p className={cn('text-base font-bold', filteredRemaining < 0 ? 'text-red-500' : 'text-amber-500')}>
-              {filteredRemaining < 0 ? '−' : ''}PKR {formatPKR(Math.abs(filteredRemaining))}
+            <div className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold mb-1', summaryStatus.chip)}>
+              <SummaryStatusIcon size={11} />
+              {summaryStatus.label}
+            </div>
+            <p className={cn('text-base font-bold', summaryStatus.text)}>
+              {filteredRemaining === 0 ? 'PKR 0' : `${filteredRemaining < 0 ? '−' : ''}PKR ${formatPKR(Math.abs(filteredRemaining))}`}
             </p>
           </div>
         </div>
@@ -937,6 +967,8 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, o
   onEditDeal: (deal: DealWithPart) => void
 }) {
   const [expanded, setExpanded] = useState(false)
+  const status = dealStatus(remaining)
+  const StatusIcon = status.icon
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -951,18 +983,23 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, o
             <span className="text-slate-400">Paid <span className="font-semibold text-emerald-600">PKR {formatPKR(paid)}</span></span>
           </div>
         </div>
-        <span className={cn('text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0',
-          remaining < 0 ? 'bg-red-50 text-red-600'
-          : remaining === 0 ? 'bg-emerald-50 text-emerald-600'
-          : 'bg-amber-50 text-amber-600')}>
-          {remaining < 0 ? `−PKR ${formatPKR(Math.abs(remaining))}` : remaining === 0 ? 'Settled' : `PKR ${formatPKR(remaining)} left`}
-        </span>
+        <div className="text-right flex-shrink-0">
+          <div className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold mb-0.5', status.chip)}>
+            <StatusIcon size={11} />
+            {status.label}
+          </div>
+          <p className={cn('text-xs font-bold', status.text)}>
+            {remaining === 0 ? 'PKR 0' : `${remaining < 0 ? '−' : ''}PKR ${formatPKR(Math.abs(remaining))}`}
+          </p>
+        </div>
       </button>
 
       {expanded && (
         <div className="border-t border-slate-100">
           {groups.map((group, groupIndex) => {
             const groupRemaining = group.agreed - group.paid
+            const groupStatus = dealStatus(groupRemaining)
+            const GroupStatusIcon = groupStatus.icon
             return (
               <div key={group.partId} className={cn('px-4 py-3', groupIndex > 0 && 'border-t border-slate-100')}>
                 <div className="flex items-center justify-between gap-3 mb-2">
@@ -970,9 +1007,15 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, o
                     {group.part && <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: group.part.color }}>{group.part.short_name}</span>}
                     <span className="text-xs font-semibold text-slate-700 truncate">{group.part?.name ?? 'Part'}</span>
                   </div>
-                  <span className={cn('text-xs font-semibold flex-shrink-0', groupRemaining < 0 ? 'text-red-500' : 'text-amber-600')}>
-                    {groupRemaining < 0 ? 'Overpaid ' : 'Remaining '}PKR {formatPKR(Math.abs(groupRemaining))}
-                  </span>
+                  <div className="text-right flex-shrink-0">
+                    <div className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold', groupStatus.chip)}>
+                      <GroupStatusIcon size={11} />
+                      {groupStatus.label}
+                    </div>
+                    <p className={cn('text-xs font-bold mt-0.5', groupStatus.text)}>
+                      {groupRemaining === 0 ? 'PKR 0' : `${groupRemaining < 0 ? '−' : ''}PKR ${formatPKR(Math.abs(groupRemaining))}`}
+                    </p>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {[...group.items].sort((a, b) => b.date.localeCompare(a.date)).map(d => (

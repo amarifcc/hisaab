@@ -10,7 +10,7 @@ import type { ProjectPart, Category } from '@/lib/types'
 type AnyTransfer = Record<string, any>
 type AnyExpense = Record<string, any>
 type AnyAllocation = { part_id: string; amount: number; project_parts?: ProjectPart }
-type TransactionFilter = 'all' | 'expenses' | 'transfers'
+type TransactionFilter = 'expenses' | 'transfers'
 
 interface Props {
   parts: ProjectPart[]
@@ -27,7 +27,7 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
   const [localTransfers, setLocalTransfers] = useState(initialTransfers)
   const [localExpenses, setLocalExpenses] = useState(initialExpenses)
   const [filterPart, setFilterPart] = useState<string>('all')
-  const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('all')
+  const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('expenses')
   const [filterOpen, setFilterOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [sortByLog, setSortByLog] = useState(false)
@@ -148,10 +148,7 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
   })
 
   const q = search.trim().toLowerCase()
-  const combinedItems =
-    transactionFilter === 'expenses' ? filteredExpenses :
-    transactionFilter === 'transfers' ? filteredTransfers :
-    [...filteredTransfers, ...filteredExpenses]
+  const combinedItems = transactionFilter === 'expenses' ? filteredExpenses : filteredTransfers
 
   const recent = combinedItems
     .sort((a, b) => {
@@ -257,16 +254,16 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
 
       <div className="flex gap-1.5 mb-4 bg-slate-100 p-1 rounded-xl">
         {[
-          { id: 'all' as const, label: 'All' },
-          { id: 'expenses' as const, label: 'Expenses' },
-          { id: 'transfers' as const, label: 'Transfers' },
+          { id: 'expenses' as const, label: 'Expenses', icon: ReceiptText },
+          { id: 'transfers' as const, label: 'Transfers', icon: ArrowDownToLine },
         ].map(t => (
           <button
             key={t.id}
             onClick={() => setTransactionFilter(t.id)}
-            className={cn('flex-1 py-2 rounded-lg text-xs font-semibold transition-colors',
+            className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
               transactionFilter === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}
           >
+            <t.icon size={13} />
             {t.label}
           </button>
         ))}
