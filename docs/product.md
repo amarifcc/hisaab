@@ -46,8 +46,8 @@ A contacts list used for autocomplete on `from_person` (transfers) and `paid_to`
 
 ## Pages
 
-### Transactions
-Combined ledger of transfers and expenses. Search by reference, name, description, or notes. The part filter scopes the list, and the Clock icon toggles between occurrence date and log-date sorting.
+### Records
+Combined workspace for transactions and deals. The Transactions tab shows transfers and expenses with search by reference, name, description, or notes. The Deals tab shows contractor+part deal groups with contractor filtering. Each tab keeps the relevant Add action.
 
 ### Transfers
 List of money received per owner per part. Sorted by date. Part filter persists in localStorage.
@@ -56,17 +56,17 @@ List of money received per owner per part. Sorted by date. Part filter persists 
 List of expenses with category filter tabs. Part filter persists in localStorage.
 
 ### Deals
-List of contractor deals grouped by contractor+part. Summary cards show group agreed, paid, remaining, with individual deals and revision timelines underneath. Part filter persists in localStorage.
+Available inside Records. Contractor deals are grouped by contractor+part. Summary cards show group agreed, paid, remaining, with individual deals and revision timelines underneath. Part and contractor filters help narrow the list.
 
 ### Reports
 Four tabs sharing a global part filter dropdown:
 
 | Tab | Content |
 |-----|---------|
-| **Overview** | All-parts: balance cards per part + grand total. One part: colored balance card + category spending breakdown |
-| **Deals** | Per-contractor: agreed / paid / remaining. Expanded cards show contractor+part groups, individual deals, and revision timelines. |
-| **Categories** | Spending breakdown by category with progress bars. Multi-select to filter categories → flat transaction list. |
+| **Overview** | All-parts: balance, received/spent metrics, activity counts, top-spend part, and part cards. One part: colored balance card + category spending breakdown |
+| **Expenses** | Spending breakdown by category with progress bars. Multi-select to filter categories → flat transaction list. |
 | **People** | Expenses grouped by `paid_to`. Multi-select to filter contractors → flat transaction list. |
+| **Deals** | Per-contractor: agreed / paid / remaining. Expanded cards show contractor+part groups, individual deals, and revision timelines. |
 
 Share button captures the report as PNG and invokes the native share sheet (Android) or downloads on desktop.
 

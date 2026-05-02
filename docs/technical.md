@@ -23,8 +23,9 @@ app/
     page.tsx            — Redirects to reports
     transfers/          — Transfers list page
     expenses/           — Expenses list page
-    transactions/       — Combined transfer + expense ledger
-    deals/              — Deals list page
+    records/            — Transactions + deals tabs
+    transactions/       — Redirects to records
+    deals/              — Redirects to records deals tab
     reports/            — Reports page (server fetches all data)
     settings/
       categories/       — Category CRUD
@@ -224,10 +225,10 @@ Each page persists its part filter in localStorage:
 
 | Page | Key |
 |------|-----|
-| Transactions | `hisab_transactions_filter_part` |
+| Records / Transactions tab | `hisab_transactions_filter_part` |
 | Expenses | `hisab_expenses_filter_part` |
 | Transfers | `hisab_transfers_filter_part` |
-| Deals | `hisab_deals_filter_part` |
+| Records / Deals tab | `hisab_deals_filter_part` |
 | Reports | `hisab_reports_filter_part` |
 
 Pattern:

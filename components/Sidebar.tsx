@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Menu, X, ListOrdered,
-  BarChart2, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, Handshake
+  BarChart2, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -14,8 +14,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 
 const mainNav = [
   { href: '/reports',  icon: BarChart2,      label: 'Reports'   },
-  { href: '/transactions', icon: ListOrdered, label: 'Transactions' },
-  { href: '/deals',    icon: Handshake,      label: 'Deals'     },
+  { href: '/records', icon: ListOrdered, label: 'Records' },
 ]
 
 const settingsNav = [

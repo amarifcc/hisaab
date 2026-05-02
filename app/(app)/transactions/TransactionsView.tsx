@@ -17,12 +17,13 @@ interface Props {
   transfers: AnyTransfer[]
   expenses: AnyExpense[]
   isSupervisor: boolean
+  embedded?: boolean
 }
 
 const FILTER_KEY = 'hisab_transactions_filter_part'
 const LEGACY_FILTER_KEY = 'hisab_filter_part'
 
-export default function TransactionsView({ parts, transfers: initialTransfers, expenses: initialExpenses, isSupervisor }: Props) {
+export default function TransactionsView({ parts, transfers: initialTransfers, expenses: initialExpenses, isSupervisor, embedded = false }: Props) {
   const [localTransfers, setLocalTransfers] = useState(initialTransfers)
   const [localExpenses, setLocalExpenses] = useState(initialExpenses)
   const [filterPart, setFilterPart] = useState<string>('all')
@@ -171,11 +172,11 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
     })
 
   return (
-    <div className="px-4 pt-5 pb-8">
+    <div className={embedded ? 'pb-8' : 'px-4 pt-5 pb-8'}>
 
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Transactions</h1>
+        <div className={embedded ? 'min-w-0' : ''}>
+          {!embedded && <h1 className="text-xl font-bold text-slate-900">Transactions</h1>}
           <p className="text-xs text-slate-400">{recent.length} entries</p>
         </div>
 

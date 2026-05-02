@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus, Search, X } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import DealSheet from '@/components/DealSheet'
@@ -13,16 +13,18 @@ interface Props {
   parts: ProjectPart[]
   paidMap: Record<string, Record<string, number>>
   isSupervisor: boolean
+  embedded?: boolean
 }
 
 const PART_FILTER_KEY = 'hisab_deals_filter_part'
 
-export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }: Props) {
+export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, embedded = false }: Props) {
   const [deals, setDeals] = useState(initialDeals)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<DealWithPart | null>(null)
   const [revisionDeal, setRevisionDeal] = useState<DealWithPart | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [contractorQuery, setContractorQuery] = useState('')
   const [filterPart, setFilterPart] = useState<string>(() =>
     typeof window === 'undefined' ? 'all' : localStorage.getItem(PART_FILTER_KEY) || 'all'
   )
@@ -46,7 +48,9 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
   }
 
   const selectedPart = parts.find(p => p.id === filterPart)
-  const filtered = filterPart === 'all' ? deals : deals.filter(d => d.part_id === filterPart)
+  const contractorNeedle = contractorQuery.trim().toLowerCase()
+  const filtered = (filterPart === 'all' ? deals : deals.filter(d => d.part_id === filterPart))
+    .filter(d => !contractorNeedle || (d.person_name ?? '').toLowerCase().includes(contractorNeedle))
   const groups = (() => {
     const map: Record<string, { person: string; partId: string; part?: ProjectPart; items: DealWithPart[]; agreed: number; paid: number }> = {}
     for (const deal of filtered) {
@@ -103,12 +107,13 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
   }
 
   return (
-    <div className="px-4 pt-5 pb-4">
+    <div className={embedded ? 'pb-4' : 'px-4 pt-5 pb-4'}>
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Deals</h1>
+          {!embedded && <h1 className="text-xl font-bold text-slate-900">Deals</h1>}
+          {embedded && <p className="text-xs text-slate-400">{filtered.length} deal{filtered.length !== 1 ? 's' : ''}</p>}
         </div>
 
         <div className="flex items-center gap-2">
@@ -184,6 +189,22 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
           </div>
         </div>
       )}
+
+      <div className="relative mb-3">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input
+          type="text"
+          value={contractorQuery}
+          onChange={e => setContractorQuery(e.target.value)}
+          placeholder="Filter by contractor..."
+          className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {contractorQuery && (
+          <button onClick={() => setContractorQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <X size={14} />
+          </button>
+        )}
+      </div>
 
       {/* Contractor + part groups */}
       <div className="space-y-2">

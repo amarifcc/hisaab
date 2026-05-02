@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
-import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil, Wallet, TrendingDown, Scale } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
@@ -111,9 +111,9 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
 
   const TABS = [
     { id: 'parts' as Tab,      icon: Layers,    label: 'Overview'   },
-    { id: 'deals' as Tab,      icon: Handshake, label: 'Deals'      },
-    { id: 'categories' as Tab, icon: Tag,        label: 'Works'      },
+    { id: 'categories' as Tab, icon: Tag,        label: 'Expenses'   },
     { id: 'people' as Tab,     icon: Users,      label: 'People'     },
+    { id: 'deals' as Tab,      icon: Handshake, label: 'Deals'      },
   ]
 
   return (
@@ -262,6 +262,24 @@ function SummaryCard({ label, value, sub, color }: { label: string; value: strin
       <p className="text-xs text-slate-400 font-medium">{label}</p>
       <p className="text-lg font-bold mt-0.5" style={{ color: color ?? '#0f172a' }}>{value}</p>
       {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
+function MiniMetric({ icon: Icon, label, value, color, bg }: {
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  label: string
+  value: string
+  color: string
+  bg: string
+}) {
+  return (
+    <div className="min-w-0">
+      <div className={cn('w-7 h-7 rounded-xl flex items-center justify-center mb-1', bg)}>
+        <Icon size={14} className={color} />
+      </div>
+      <p className="text-[11px] text-slate-400">{label}</p>
+      <p className={cn('text-xs font-bold truncate', color)}>{value}</p>
     </div>
   )
 }
@@ -730,15 +748,45 @@ function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
   const totalDeposited = summaries.reduce((s, x) => s + x.deposited, 0)
   const totalSpent = summaries.reduce((s, x) => s + x.spent, 0)
   const totalBalance = totalDeposited - totalSpent
+  const transferCount = transfers.length
+  const expenseCount = expenses.length
+  const activeParts = summaries.filter(x => x.deposited > 0 || x.spent > 0).length
+  const topSpentPart = summaries.reduce<typeof summaries[number] | null>((top, item) => {
+    if (!top || item.spent > top.spent) return item
+    return top
+  }, null)
+  const spentPct = totalDeposited > 0 ? Math.min((totalSpent / totalDeposited) * 100, 100) : 0
 
   return (
     <div className="space-y-2.5">
-      <SummaryCard
-        label={totalBalance >= 0 ? 'Total Balance' : 'Total Deficit'}
-        value={`${totalBalance < 0 ? '−' : ''}PKR ${formatPKR(Math.abs(totalBalance))}`}
-        sub={`${formatPKR(totalDeposited)} in · ${formatPKR(totalSpent)} out`}
-        color={totalBalance < 0 ? '#dc2626' : '#16a34a'}
-      />
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="px-4 py-3.5">
+          <p className="text-xs text-slate-400 font-medium mb-1">Overall Balance</p>
+          <p className={cn('text-2xl font-bold', totalBalance < 0 ? 'text-red-500' : 'text-emerald-600')}>
+            {totalBalance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(totalBalance))}
+          </p>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <MiniMetric icon={Wallet} label="Received" value={`PKR ${formatPKR(totalDeposited)}`} color="text-emerald-600" bg="bg-emerald-50" />
+            <MiniMetric icon={TrendingDown} label="Spent" value={`PKR ${formatPKR(totalSpent)}`} color="text-rose-500" bg="bg-rose-50" />
+            <MiniMetric icon={Scale} label={totalBalance < 0 ? 'Deficit' : 'Remaining'} value={`PKR ${formatPKR(Math.abs(totalBalance))}`} color={totalBalance < 0 ? 'text-red-500' : 'text-amber-600'} bg={totalBalance < 0 ? 'bg-red-50' : 'bg-amber-50'} />
+          </div>
+        </div>
+        <div className="px-4 pb-3">
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${spentPct}%` }} />
+          </div>
+          <div className="flex items-center justify-between mt-1 text-xs text-slate-400">
+            <span>{totalDeposited > 0 ? `${(totalSpent / totalDeposited * 100).toFixed(0)}% spent` : 'No received funds yet'}</span>
+            <span>{activeParts} active part{activeParts !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <SummaryCard label="Transfers" value={String(transferCount)} sub="received" />
+        <SummaryCard label="Expenses" value={String(expenseCount)} sub="paid out" />
+        <SummaryCard label="Top Spend" value={topSpentPart?.spent ? topSpentPart.part.short_name : '-'} sub={topSpentPart?.spent ? `PKR ${formatPKR(topSpentPart.spent)}` : 'none'} color={topSpentPart?.part.color} />
+      </div>
 
       {summaries.map(({ part, deposited, spent, balance }) => (
         <div key={part.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
