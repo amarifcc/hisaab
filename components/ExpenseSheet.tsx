@@ -149,7 +149,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
           {/* 1. Floor allocation */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-slate-500">Floor / Part *</label>
+              <label className="text-xs font-medium text-slate-500">Part Allocation *</label>
               <button
                 onClick={() => setIsSplit(s => !s)}
                 className={cn('flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors',
@@ -157,7 +157,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
                 )}
               >
                 <SplitSquareHorizontal size={12} />
-                Split
+                {isSplit ? 'Multi-part' : 'Allocate'}
               </button>
             </div>
 

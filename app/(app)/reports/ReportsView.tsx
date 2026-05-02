@@ -2,18 +2,19 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
-import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check } from 'lucide-react'
+import { dealTotal, sortedDealRevisions } from '@/lib/deals'
+import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, ListPlus, Pencil } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
-import type { ProjectPart, Category, Transfer, Expense, ExpenseAllocation, Deal } from '@/lib/types'
+import DealRevisionSheet from '@/components/DealRevisionSheet'
+import type { ProjectPart, Category, Transfer, Expense, ExpenseAllocation, DealWithPart } from '@/lib/types'
 
 type TransferWithPart = Transfer & { project_parts: ProjectPart }
 type ExpenseWithDetails = Expense & {
   categories: Category | null
   expense_allocations: (ExpenseAllocation & { project_parts: ProjectPart })[]
 }
-type DealWithPart = Deal & { project_parts: ProjectPart }
 type Tab = 'parts' | 'deals' | 'categories' | 'people'
 
 interface Props {
@@ -34,15 +35,15 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const [reportExpenses, setReportExpenses] = useState(expenses)
   const [reportDeals, setReportDeals] = useState(deals)
   const [reportPaidMap, setReportPaidMap] = useState(paidMap)
-  const [filterPart, setFilterPart] = useState<string>('all')
-  useEffect(() => {
-    const saved = localStorage.getItem(PART_FILTER_KEY)
-    if (saved) setFilterPart(saved)
-  }, [])
+  const [filterPart, setFilterPart] = useState<string>(() =>
+    typeof window === 'undefined' ? 'all' : localStorage.getItem(PART_FILTER_KEY) || 'all'
+  )
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [addHintOpen, setAddHintOpen] = useState(false)
   const [sheet, setSheet] = useState<null | 'expense' | 'transfer' | 'deal'>(null)
+  const [revisionDeal, setRevisionDeal] = useState<DealWithPart | null>(null)
+  const [editingDeal, setEditingDeal] = useState<DealWithPart | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const addRef = useRef<HTMLDivElement>(null)
 
@@ -82,8 +83,17 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const selectedPart = parts.find(p => p.id === filterPart)
 
   function openSheet(nextSheet: 'expense' | 'transfer' | 'deal') {
+    if (nextSheet === 'deal') setEditingDeal(null)
     setSheet(nextSheet)
     setAddOpen(false)
+  }
+
+  function saveDeal(data: DealWithPart) {
+    if (editingDeal) {
+      setReportDeals(prev => prev.map(deal => deal.id === data.id ? data : deal))
+    } else {
+      setReportDeals(prev => [data, ...prev])
+    }
   }
 
   function addExpense(data: ExpenseWithDetails) {
@@ -205,7 +215,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
         {tab === 'parts' &&
           <PartsReport transfers={scopedTransfers} expenses={scopedExpenses} parts={parts} categories={categories} selectedPart={selectedPart} />}
         {tab === 'deals' &&
-          <DealsReport deals={scopedDeals} paidMap={reportPaidMap} filterPart={filterPart} selectedPart={selectedPart} />}
+          <DealsReport deals={scopedDeals} paidMap={reportPaidMap} selectedPart={selectedPart} isSupervisor={isSupervisor} onAddScope={setRevisionDeal} onEditDeal={(deal) => { setEditingDeal(deal); setSheet('deal') }} />}
         {tab === 'categories' &&
           <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} />}
         {tab === 'people' &&
@@ -227,9 +237,18 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
       />
       <DealSheet
         open={sheet === 'deal'}
-        onClose={() => setSheet(null)}
-        onSaved={(data) => setReportDeals(prev => [data, ...prev])}
+        onClose={() => { setSheet(null); setEditingDeal(null) }}
+        onSaved={saveDeal}
         parts={parts}
+        editing={editingDeal}
+        existingDeals={reportDeals}
+        onAddScope={setRevisionDeal}
+      />
+      <DealRevisionSheet
+        open={!!revisionDeal}
+        deal={revisionDeal}
+        onClose={() => setRevisionDeal(null)}
+        onSaved={(data) => setReportDeals(prev => prev.map(deal => deal.id === data.id ? data : deal))}
       />
     </div>
   )
@@ -342,7 +361,8 @@ function PeopleReport({ expenses, getAmount, selectedPart }: {
   function togglePerson(id: string) {
     setSelectedPeople(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -480,7 +500,8 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
   function toggleCat(id: string) {
     setSelectedCats(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -750,38 +771,46 @@ function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
 
 // ── Deals Report ──────────────────────────────────────────────────────────────
 
-function DealsReport({ deals, paidMap, filterPart, selectedPart }: {
+function DealsReport({ deals, paidMap, selectedPart, isSupervisor, onAddScope, onEditDeal }: {
   deals: DealWithPart[]
   paidMap: Record<string, Record<string, number>>
-  filterPart: string
   selectedPart?: ProjectPart
+  isSupervisor: boolean
+  onAddScope: (deal: DealWithPart) => void
+  onEditDeal: (deal: DealWithPart) => void
 }) {
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set())
 
-  function getPaid(person: string): number {
-    if (filterPart === 'all') return Object.values(paidMap[person] ?? {}).reduce((s, v) => s + v, 0)
-    return paidMap[person]?.[filterPart] ?? 0
-  }
-
-  const personMap: Record<string, { agreed: number; items: DealWithPart[] }> = {}
+  const personMap: Record<string, { agreed: number; paid: number; groups: Record<string, { part?: ProjectPart; partId: string; agreed: number; paid: number; items: DealWithPart[] }> }> = {}
   for (const d of deals) {
     const name = d.person_name || '(unspecified)'
-    if (!personMap[name]) personMap[name] = { agreed: 0, items: [] }
-    personMap[name].agreed += d.agreed_amount
-    personMap[name].items.push(d)
+    if (!personMap[name]) personMap[name] = { agreed: 0, paid: 0, groups: {} }
+    if (!personMap[name].groups[d.part_id]) {
+      personMap[name].groups[d.part_id] = {
+        part: d.project_parts,
+        partId: d.part_id,
+        agreed: 0,
+        paid: paidMap[name]?.[d.part_id] ?? 0,
+        items: [],
+      }
+    }
+    const amount = dealTotal(d)
+    personMap[name].agreed += amount
+    personMap[name].groups[d.part_id].agreed += amount
+    personMap[name].groups[d.part_id].items.push(d)
+  }
+  for (const person of Object.values(personMap)) {
+    person.paid = Object.values(person.groups).reduce((sum, group) => sum + group.paid, 0)
   }
   const people = Object.entries(personMap)
-    .map(([name, { agreed, items }]) => ({ name, agreed, paid: getPaid(name), items }))
+    .map(([name, { agreed, paid, groups }]) => ({ name, agreed, paid, groups: Object.values(groups).sort((a, b) => b.agreed - a.agreed) }))
     .sort((a, b) => b.agreed - a.agreed)
-
-  const totalAgreed = people.reduce((s, p) => s + p.agreed, 0)
-  const totalPaid = people.reduce((s, p) => s + p.paid, 0)
-  const totalRemaining = totalAgreed - totalPaid
 
   function togglePerson(id: string) {
     setSelectedPeople(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -829,7 +858,7 @@ function DealsReport({ deals, paidMap, filterPart, selectedPart }: {
         <p className="text-center text-slate-400 text-sm py-8">No deals recorded</p>
       )}
 
-      {visiblePeople.map(({ name, agreed, paid, items }) => {
+      {visiblePeople.map(({ name, agreed, paid, groups }) => {
         const remaining = agreed - paid
         return (
           <DealPersonCard
@@ -838,7 +867,10 @@ function DealsReport({ deals, paidMap, filterPart, selectedPart }: {
             agreed={agreed}
             paid={paid}
             remaining={remaining}
-            items={items}
+            groups={groups}
+            isSupervisor={isSupervisor}
+            onAddScope={onAddScope}
+            onEditDeal={onEditDeal}
           />
         )
       })}
@@ -846,8 +878,15 @@ function DealsReport({ deals, paidMap, filterPart, selectedPart }: {
   )
 }
 
-function DealPersonCard({ name, agreed, paid, remaining, items }: {
-  name: string; agreed: number; paid: number; remaining: number; items: DealWithPart[]
+function DealPersonCard({ name, agreed, paid, remaining, groups, isSupervisor, onAddScope, onEditDeal }: {
+  name: string
+  agreed: number
+  paid: number
+  remaining: number
+  groups: { part?: ProjectPart; partId: string; agreed: number; paid: number; items: DealWithPart[] }[]
+  isSupervisor: boolean
+  onAddScope: (deal: DealWithPart) => void
+  onEditDeal: (deal: DealWithPart) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -874,21 +913,58 @@ function DealPersonCard({ name, agreed, paid, remaining, items }: {
 
       {expanded && (
         <div className="border-t border-slate-100">
-          {[...items].sort((a, b) => b.date.localeCompare(a.date)).map((d, i) => (
-            <div key={d.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-700 truncate">{d.name}</p>
-                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                  {d.project_parts && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: d.project_parts.color }}>{d.project_parts.short_name}</span>
-                  )}
-                  <span className="text-xs text-slate-400">{formatDate(d.date)}</span>
-                  {d.notes && <span className="text-xs text-slate-400 italic">{d.notes}</span>}
+          {groups.map((group, groupIndex) => {
+            const groupRemaining = group.agreed - group.paid
+            return (
+              <div key={group.partId} className={cn('px-4 py-3', groupIndex > 0 && 'border-t border-slate-100')}>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {group.part && <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: group.part.color }}>{group.part.short_name}</span>}
+                    <span className="text-xs font-semibold text-slate-700 truncate">{group.part?.name ?? 'Part'}</span>
+                  </div>
+                  <span className={cn('text-xs font-semibold flex-shrink-0', groupRemaining < 0 ? 'text-red-500' : 'text-amber-600')}>
+                    {groupRemaining < 0 ? 'Overpaid ' : 'Remaining '}PKR {formatPKR(Math.abs(groupRemaining))}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {[...group.items].sort((a, b) => b.date.localeCompare(a.date)).map(d => (
+                    <div key={d.id} className="rounded-xl bg-slate-50 px-3 py-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-slate-700 truncate">{d.name}</p>
+                          <span className="text-xs text-slate-400">{formatDate(d.date)}</span>
+                          {d.notes && <span className="text-xs text-slate-400 italic"> · {d.notes}</span>}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs font-bold text-blue-600">PKR {formatPKR(dealTotal(d))}</span>
+                          {isSupervisor && (
+                            <>
+                              <button onClick={() => onAddScope(d)} className="text-slate-400 active:text-blue-600" title="Add scope">
+                                <ListPlus size={13} />
+                              </button>
+                              <button onClick={() => onEditDeal(d)} className="text-slate-400 active:text-blue-600" title="Edit deal">
+                                <Pencil size={13} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-1.5 space-y-1">
+                        {sortedDealRevisions(d).map(revision => (
+                          <div key={revision.id} className="flex items-start justify-between gap-2 text-xs">
+                            <span className="text-slate-500 truncate">V{revision.revision_number} · {revision.scope_description}</span>
+                            <span className={cn('font-semibold flex-shrink-0', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
+                              {revision.amount_delta > 0 ? '+' : '−'}PKR {formatPKR(Math.abs(revision.amount_delta))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <span className="text-xs font-bold text-blue-600 ml-2 flex-shrink-0">PKR {formatPKR(d.agreed_amount)}</span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

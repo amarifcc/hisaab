@@ -9,7 +9,7 @@ import type { ProjectPart, Category } from '@/lib/types'
 
 type AnyTransfer = Record<string, any>
 type AnyExpense = Record<string, any>
-type AnyAllocation = { part_id: string; amount: number }
+type AnyAllocation = { part_id: string; amount: number; project_parts?: ProjectPart }
 type TransactionFilter = 'all' | 'expenses' | 'transfers'
 
 interface Props {
@@ -115,10 +115,36 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
     : localTransfers.filter(t => t.part_id === filterPart)
   ).map(t => ({ _type: 'transfer' as const, _date: t.date, _created: t.created_at, ...t }))
 
-  const filteredExpenses = (filterPart === 'all'
-    ? localExpenses
-    : localExpenses.filter(e => e.expense_allocations?.some((a: AnyAllocation) => a.part_id === filterPart))
-  ).map(e => ({ _type: 'expense' as const, _date: e.date, _created: e.created_at, ...e }))
+  const filteredExpenses = localExpenses.flatMap(e => {
+    const allocs: AnyAllocation[] = e.expense_allocations ?? []
+    const visibleAllocs = filterPart === 'all'
+      ? allocs
+      : allocs.filter(a => a.part_id === filterPart)
+    if (visibleAllocs.length === 0 && filterPart !== 'all') return []
+    if (allocs.length <= 1) {
+      const allocation = visibleAllocs[0] ?? allocs[0] ?? null
+      return [{
+        _type: 'expense' as const,
+        _date: e.date,
+        _created: e.created_at,
+        _rowId: `expense-${e.id}`,
+        _allocation: allocation,
+        _displayAmount: allocation ? Number(allocation.amount) : Number(e.total_amount),
+        _isLinkedAllocation: false,
+        ...e,
+      }]
+    }
+    return visibleAllocs.map(allocation => ({
+      _type: 'expense' as const,
+      _date: e.date,
+      _created: e.created_at,
+      _rowId: `expense-${e.id}-${allocation.part_id}`,
+      _allocation: allocation,
+      _displayAmount: Number(allocation.amount),
+      _isLinkedAllocation: true,
+      ...e,
+    }))
+  })
 
   const q = search.trim().toLowerCase()
   const combinedItems =
@@ -270,7 +296,7 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
 
       <div className="space-y-2">
         {recent.map(item => {
-          const itemId = (item as any).id
+          const itemId = (item as any)._rowId ?? (item as any).id
           const isExpanded = expandedId === itemId
 
           if (item._type === 'transfer') {
@@ -342,9 +368,16 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
             const e = item as any
             const cat = e.categories
             const allocs: AnyAllocation[] = e.expense_allocations ?? []
-            const displayAllocs = filterPart === 'all'
+            const displayAllocs = e._allocation ? [e._allocation] : (filterPart === 'all'
               ? allocs
-              : allocs.filter((a: AnyAllocation) => a.part_id === filterPart)
+              : allocs.filter((a: AnyAllocation) => a.part_id === filterPart))
+            const displayAmount = Number(e._displayAmount ?? e.total_amount)
+            const linked = Boolean(e._isLinkedAllocation)
+            const allocationIndex = linked && e._allocation
+              ? allocs.findIndex((a: AnyAllocation) => a.part_id === e._allocation.part_id) + 1
+              : 0
+            const showCategoryChip = cat && cat.name !== (e.description || '')
+            const categoryMeta = cat && cat.name !== (e.description || '') ? ` · ${cat.name}` : ''
 
             return (
               <div key={itemId} className="bg-white rounded-xl border border-slate-100 overflow-hidden">
@@ -359,12 +392,17 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-900 line-clamp-2">{e.description || cat?.name || 'Expense'}</p>
                       <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                        {displayAllocs.map((a: any) => (
+                        {displayAllocs.map((a: AnyAllocation) => (
                           <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>
                             {a.project_parts?.short_name}
                           </span>
                         ))}
-                        {cat && (
+                        {linked && (
+                          <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                            linked {allocationIndex} of {allocs.length}
+                          </span>
+                        )}
+                        {showCategoryChip && (
                           <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: cat.color }}>
                             {cat.name}
                           </span>
@@ -372,16 +410,14 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
                       </div>
                       <p className="text-xs text-slate-400 mt-0.5">
                         {e.ref_number ? <span className="font-mono mr-1.5">{fmtRef('EXP', e.ref_number)}</span> : null}
-                        {formatDate(e.date)}{e.paid_to ? ` · ${e.paid_to}` : ''}
+                        {formatDate(e.date)}{showCategoryChip ? '' : categoryMeta}{e.paid_to ? ` · ${e.paid_to}` : ''}
                       </p>
                       {e.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{e.notes}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                     <span className="text-rose-500 font-bold text-sm">
-                      -{formatPKR(filterPart === 'all'
-                        ? e.total_amount
-                        : (allocs.find((a: AnyAllocation) => a.part_id === filterPart)?.amount ?? e.total_amount))}
+                      -{formatPKR(displayAmount)}
                     </span>
                     {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
                   </div>
@@ -395,11 +431,25 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
                       {e.paid_to && <p><span className="text-slate-400">Paid to:</span> {e.paid_to}</p>}
                       <p><span className="text-slate-400">Date:</span> {formatDate(e.date)}</p>
                       {allocs.length > 0 && (
-                        <div>
-                          <span className="text-slate-400">Split: </span>
-                          {allocs.map((a: any) => (
-                            <span key={a.part_id} className="mr-2">{a.project_parts?.short_name}</span>
-                          ))}
+                        <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 mt-2">
+                          <p className="text-xs font-semibold text-slate-500 mb-1.5">Allocated</p>
+                          <div className="space-y-1">
+                            {allocs.map((a: AnyAllocation) => (
+                              <div key={a.part_id} className="flex items-center justify-between gap-3">
+                                <span className="flex items-center gap-1.5 text-slate-600">
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: a.project_parts?.color }} />
+                                  {a.project_parts?.short_name ?? 'Part'}
+                                </span>
+                                <span className="font-semibold text-slate-700">PKR {formatPKR(Number(a.amount))}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {allocs.length > 1 && (
+                            <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-slate-100">
+                              <span className="text-blue-600 font-medium">Linked total</span>
+                              <span className="text-blue-600 font-bold">PKR {formatPKR(e.total_amount)}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                       {e.notes && <p><span className="text-slate-400">Notes:</span> {e.notes}</p>}

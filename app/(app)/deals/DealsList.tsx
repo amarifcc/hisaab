@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Handshake } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
+import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import DealSheet from '@/components/DealSheet'
+import DealRevisionSheet from '@/components/DealRevisionSheet'
 import type { ProjectPart, DealWithPart } from '@/lib/types'
 
 interface Props {
@@ -19,13 +21,13 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
   const [deals, setDeals] = useState(initialDeals)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<DealWithPart | null>(null)
-  const [filterPart, setFilterPart] = useState<string>('all')
+  const [revisionDeal, setRevisionDeal] = useState<DealWithPart | null>(null)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [filterPart, setFilterPart] = useState<string>(() =>
+    typeof window === 'undefined' ? 'all' : localStorage.getItem(PART_FILTER_KEY) || 'all'
+  )
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const saved = localStorage.getItem(PART_FILTER_KEY)
-    if (saved) setFilterPart(saved)
-  }, [])
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -45,50 +47,35 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
 
   const selectedPart = parts.find(p => p.id === filterPart)
   const filtered = filterPart === 'all' ? deals : deals.filter(d => d.part_id === filterPart)
+  const groups = (() => {
+    const map: Record<string, { person: string; partId: string; part?: ProjectPart; items: DealWithPart[]; agreed: number; paid: number }> = {}
+    for (const deal of filtered) {
+      const person = deal.person_name || '(unspecified)'
+      const key = `${person}::${deal.part_id}`
+      if (!map[key]) {
+        map[key] = {
+          person,
+          partId: deal.part_id,
+          part: deal.project_parts,
+          items: [],
+          agreed: 0,
+          paid: paidMap[person]?.[deal.part_id] ?? 0,
+        }
+      }
+      map[key].items.push(deal)
+      map[key].agreed += dealTotal(deal)
+    }
+    return Object.values(map).sort((a, b) => b.agreed - a.agreed)
+  })()
 
   // Part-level totals for visible deals
   const partTotals = (() => {
-    const totalAgreed = filtered.reduce((s, d) => s + d.agreed_amount, 0)
-    let totalPaid = 0
-    if (filterPart === 'all') {
-      const seen = new Set<string>()
-      for (const deal of filtered) {
-        if (!deal.person_name || seen.has(deal.person_name)) continue
-        seen.add(deal.person_name)
-        const partPaid = paidMap[deal.person_name] ?? {}
-        totalPaid += Object.values(partPaid).reduce((s, v) => s + v, 0)
-      }
-    } else {
-      const seen = new Set<string>()
-      for (const deal of filtered) {
-        if (!deal.person_name || seen.has(deal.person_name)) continue
-        seen.add(deal.person_name)
-        totalPaid += paidMap[deal.person_name]?.[filterPart] ?? 0
-      }
-    }
+    const totalAgreed = groups.reduce((s, group) => s + group.agreed, 0)
+    const totalPaid = groups.reduce((s, group) => s + group.paid, 0)
     return { totalAgreed, totalPaid, remaining: totalAgreed - totalPaid }
   })()
 
-  // Per-person summary for visible deals
-  const personSummary = (() => {
-    const map: Record<string, { agreed: number; paid: number }> = {}
-    for (const deal of filtered) {
-      if (!deal.person_name) continue
-      if (!map[deal.person_name]) map[deal.person_name] = { agreed: 0, paid: 0 }
-      map[deal.person_name].agreed += deal.agreed_amount
-
-      // Sum paid across relevant parts
-      if (filterPart === 'all') {
-        const partPaid = paidMap[deal.person_name] ?? {}
-        map[deal.person_name].paid = Object.values(partPaid).reduce((s, v) => s + v, 0)
-      } else {
-        map[deal.person_name].paid = paidMap[deal.person_name]?.[filterPart] ?? 0
-      }
-    }
-    return Object.entries(map)
-  })()
-
-  function handleSaved(data: any) {
+  function handleSaved(data: DealWithPart) {
     if (editing) {
       setDeals(prev => prev.map(d => d.id === data.id ? data : d))
     } else {
@@ -100,6 +87,19 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
     if (!confirm('Delete this deal?')) return
     const res = await fetch('/api/deals', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
     if (res.ok) setDeals(prev => prev.filter(d => d.id !== id))
+  }
+
+  function handleRevisionSaved(data: DealWithPart) {
+    setDeals(prev => prev.map(d => d.id === data.id ? data : d))
+  }
+
+  function toggleGroup(key: string) {
+    setExpandedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   return (
@@ -185,82 +185,93 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
         </div>
       )}
 
-      {/* Per-person summary */}
-      {personSummary.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {personSummary.map(([person, { agreed, paid }]) => {
-            const remaining = agreed - paid
-            return (
-              <div key={person} className="bg-white rounded-xl px-4 py-3 border border-slate-100 shadow-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-violet-50 flex items-center justify-center">
-                      <span className="text-xs font-bold text-violet-600">{person.charAt(0).toUpperCase()}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-slate-900">{person}</span>
-                  </div>
-                  <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full',
-                    remaining < 0 ? 'bg-red-50 text-red-600'
-                    : remaining === 0 ? 'bg-emerald-50 text-emerald-600'
-                    : 'bg-amber-50 text-amber-600'
-                  )}>
-                    {remaining < 0 ? `−PKR ${formatPKR(Math.abs(remaining))} overpaid`
-                     : remaining === 0 ? 'Settled'
-                     : `PKR ${formatPKR(remaining)} left`}
-                  </span>
-                </div>
-                <div className="flex gap-4 text-xs text-slate-500">
-                  <span>Agreed <span className="font-semibold text-slate-700">PKR {formatPKR(agreed)}</span></span>
-                  <span>Paid <span className="font-semibold text-emerald-600">PKR {formatPKR(paid)}</span></span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Deals list */}
+      {/* Contractor + part groups */}
       <div className="space-y-2">
         {filtered.length === 0 && (
           <p className="text-center text-slate-400 text-sm py-10">No deals</p>
         )}
-        {filtered.map(d => {
-          const part = d.project_parts
+        {groups.map(group => {
+          const remaining = group.agreed - group.paid
+          const groupKey = `${group.person}-${group.partId}`
+          const isExpanded = expandedGroups.has(groupKey)
           return (
-            <div key={d.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100 shadow-sm">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                    <Handshake size={17} className="text-blue-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{d.name}</p>
-                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                      {part && (
-                        <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: part.color }}>
-                          {part.short_name}
-                        </span>
-                      )}
-                      {d.person_name && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">
-                          {d.person_name}
-                        </span>
-                      )}
+            <div key={groupKey} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+              <button
+                onClick={() => toggleGroup(groupKey)}
+                className="w-full px-4 py-3 bg-white text-left"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-full bg-violet-50 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-violet-600">{group.person.charAt(0).toUpperCase()}</span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(d.date)}</p>
-                    {d.notes && <p className="text-xs text-slate-400 italic mt-0.5">{d.notes}</p>}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{group.person}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {group.part && <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: group.part.color }}>{group.part.short_name}</span>}
+                        <span className="text-xs text-slate-400">{group.part?.name ?? 'Part'} · {group.items.length} deal{group.items.length !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">{remaining < 0 ? 'Overpaid' : 'Remaining'}</p>
+                      <p className={cn('text-sm font-bold', remaining < 0 ? 'text-red-500' : 'text-amber-600')}>
+                        {remaining < 0 ? '−' : ''}PKR {formatPKR(Math.abs(remaining))}
+                      </p>
+                    </div>
+                    <ChevronDown size={14} className={cn('text-slate-300 transition-transform', isExpanded && 'rotate-180')} />
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1 ml-2 flex-shrink-0">
-                  <span className="text-blue-600 font-bold text-sm">PKR {formatPKR(d.agreed_amount)}</span>
-                  {isSupervisor && (
-                    <div className="flex gap-2">
-                      <button onClick={() => { setEditing(d); setSheetOpen(true) }} className="text-slate-400 active:text-blue-600"><Pencil size={14} /></button>
-                      <button onClick={() => handleDelete(d.id)} className="text-slate-400 active:text-red-600"><Trash2 size={14} /></button>
-                    </div>
-                  )}
+                <div className="flex gap-4 text-xs text-slate-500 mt-2">
+                  <span>Agreed <span className="font-semibold text-slate-700">PKR {formatPKR(group.agreed)}</span></span>
+                  <span>Paid <span className="font-semibold text-emerald-600">PKR {formatPKR(group.paid)}</span></span>
                 </div>
-              </div>
+              </button>
+
+              {isExpanded && (
+                <div className="divide-y divide-slate-50 border-t border-slate-100 bg-slate-50/40">
+                  {group.items.map(d => (
+                    <div key={d.id} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                            <Handshake size={17} className="text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate">{d.name}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">{formatDate(d.date)}</p>
+                            {d.notes && <p className="text-xs text-slate-400 italic mt-0.5">{d.notes}</p>}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span className="text-blue-600 font-bold text-sm">PKR {formatPKR(dealTotal(d))}</span>
+                          {isSupervisor && (
+                            <div className="flex gap-2">
+                              <button onClick={() => setRevisionDeal(d)} className="text-slate-400 active:text-blue-600"><ListPlus size={14} /></button>
+                              <button onClick={() => { setEditing(d); setSheetOpen(true) }} className="text-slate-400 active:text-blue-600"><Pencil size={14} /></button>
+                              <button onClick={() => handleDelete(d.id)} className="text-slate-400 active:text-red-600"><Trash2 size={14} /></button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-2 ml-12 space-y-1">
+                        {sortedDealRevisions(d).map(revision => (
+                          <div key={revision.id} className="flex items-start justify-between gap-3 text-xs">
+                            <div className="min-w-0">
+                              <p className="font-medium text-slate-600 truncate">V{revision.revision_number} · {revision.scope_description}</p>
+                              <p className="text-slate-400">{formatDate(revision.date)}{revision.notes ? ` · ${revision.notes}` : ''}</p>
+                            </div>
+                            <span className={cn('font-bold flex-shrink-0', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
+                              {revision.amount_delta > 0 ? '+' : '−'}PKR {formatPKR(Math.abs(revision.amount_delta))}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
@@ -272,6 +283,14 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor }
         onSaved={handleSaved}
         parts={parts}
         editing={editing}
+        existingDeals={deals}
+        onAddScope={setRevisionDeal}
+      />
+      <DealRevisionSheet
+        open={!!revisionDeal}
+        deal={revisionDeal}
+        onClose={() => setRevisionDeal(null)}
+        onSaved={handleRevisionSaved}
       />
     </div>
   )

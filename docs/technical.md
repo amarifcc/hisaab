@@ -93,14 +93,14 @@ Auto-created on signup via `handle_new_user()` trigger. Default role is `viewer`
 | category_id | uuid FK | References `categories` |
 | date | date | |
 
-Split into parts via `expense_allocations`.
+Allocated to one or more parts via `expense_allocations`.
 
 ### `expense_allocations`
 | Column | Type | Notes |
 |--------|------|-------|
 | expense_id | uuid FK | Cascade delete |
 | part_id | uuid FK | |
-| amount | numeric | Per-part amount |
+| amount | numeric | Per-part allocation amount |
 | UNIQUE | (expense_id, part_id) | |
 
 ### `deals`
@@ -110,10 +110,20 @@ Split into parts via `expense_allocations`.
 | name | text | Description of the contracted work |
 | person_name | text | Contractor name (soft link to `people.name`) |
 | part_id | uuid FK | |
-| agreed_amount | numeric | |
+| agreed_amount | numeric | Compatibility/current total; revision sum is source of truth when revisions exist |
 | date | date | |
 
-"Paid" amount is computed at query time from `expenses.paid_to` matching `person_name`.
+### `deal_revisions`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| deal_id | uuid FK | Cascade delete with deal |
+| revision_number | int | Unique per deal |
+| scope_description | text | Original or changed scope |
+| amount_delta | numeric | Positive or negative agreed amount change |
+| date | date | |
+
+"Paid" amount is computed at query time from `expenses.paid_to` matching `person_name` for the relevant part. It is shown at contractor+part level, not allocated to individual deal rows.
 
 ### `people`
 | Column | Type | Notes |
@@ -248,6 +258,10 @@ Run each file in `supabase/migrations/` in numeric order via Supabase SQL Editor
 | `005_deals.sql` | `deals` table; extends activity_logs entity_type constraint |
 | `006_people_employee_type.sql` | Adds `employee` to person_type enum |
 | `007_owner_part.sql` | Adds `part_id` FK to people (required for transfer auto-resolution) |
+| `008_category_hierarchy.sql` | Adds category hierarchy support |
+| `009_category_is_group.sql` | Adds category group flag |
+| `010_reference_numbers.sql` | Adds transaction reference numbers |
+| `011_deal_revisions.sql` | Adds deal revision history and backfills existing deal totals |
 
 **Pending for existing owners**: After running 007, go to Settings → People and edit each owner to assign their project part. Until this is done, transfers cannot be recorded for those owners.
 

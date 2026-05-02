@@ -20,6 +20,14 @@ interface Props {
 
 const PART_FILTER_KEY = 'hisab_expenses_filter_part'
 
+type ExpenseAllocationRow = ExpenseAllocation & { project_parts: ProjectPart }
+type ExpenseListRow = ExpenseWithDetails & {
+  _rowId: string
+  _allocation: ExpenseAllocationRow | null
+  _displayAmount: number
+  _isLinkedAllocation: boolean
+}
+
 export default function ExpensesList({ initialExpenses, parts, categories, isSupervisor }: Props) {
   const [expenses, setExpenses] = useState(initialExpenses)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -64,6 +72,30 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
     const partMatch = filterPart === 'all' || e.expense_allocations.some(a => a.part_id === filterPart)
     const catMatch = filterCat === 'all' || e.category_id === filterCat
     return partMatch && catMatch
+  })
+
+  const rows: ExpenseListRow[] = filtered.flatMap<ExpenseListRow>(e => {
+    const allocs = e.expense_allocations
+    const visibleAllocs = filterPart === 'all'
+      ? allocs
+      : allocs.filter(a => a.part_id === filterPart)
+    if (allocs.length <= 1) {
+      const allocation = visibleAllocs[0] ?? allocs[0] ?? null
+      return [{
+        ...e,
+        _rowId: `expense-${e.id}`,
+        _allocation: allocation,
+        _displayAmount: allocation ? Number(allocation.amount) : Number(e.total_amount),
+        _isLinkedAllocation: false,
+      }]
+    }
+    return visibleAllocs.map(allocation => ({
+      ...e,
+      _rowId: `expense-${e.id}-${allocation.part_id}`,
+      _allocation: allocation,
+      _displayAmount: Number(allocation.amount),
+      _isLinkedAllocation: true,
+    }))
   })
 
   const totalFiltered = filtered.reduce((s, e) => {
@@ -223,17 +255,21 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
         {filtered.length === 0 && (
           <p className="text-center text-slate-400 text-sm py-10">No expenses</p>
         )}
-        {filtered.map(e => {
+        {rows.map(e => {
           const allocs = e.expense_allocations
-          const displayAllocs = filterPart === 'all'
+          const displayAllocs = e._allocation ? [e._allocation] : (filterPart === 'all'
             ? allocs
-            : allocs.filter(a => a.part_id === filterPart)
-          const displayAmount = filterPart === 'all'
-            ? e.total_amount
-            : (allocs.find(a => a.part_id === filterPart)?.amount ?? e.total_amount)
+            : allocs.filter(a => a.part_id === filterPart))
+          const displayAmount = e._displayAmount
+          const allocationIndex = e._isLinkedAllocation && e._allocation
+            ? allocs.findIndex(a => a.part_id === e._allocation?.part_id) + 1
+            : 0
+          const category = e.categories
+          const showCategoryChip = category ? category.name !== (e.description || '') : false
+          const categoryMeta = category && category.name !== (e.description || '') ? ` · ${category.name}` : ''
 
           return (
-            <div key={e.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100 shadow-sm">
+            <div key={e._rowId} className="bg-white rounded-xl px-4 py-3 border border-slate-100 shadow-sm">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center flex-shrink-0">
@@ -247,18 +283,21 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
                           {a.project_parts?.short_name}
                         </span>
                       ))}
-                      {allocs.length > 1 && filterPart === 'all' && (
-                        <span className="text-xs text-slate-400">split</span>
+                      {e._isLinkedAllocation && (
+                        <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                          linked {allocationIndex} of {allocs.length}
+                        </span>
                       )}
-                      {e.categories && (
-                        <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>
-                          {e.categories.name}
+                      {showCategoryChip && category && (
+                        <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: category.color }}>
+                          {category.name}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400 mt-0.5">
                       {e.ref_number ? <span className="font-mono mr-1.5">{fmtRef('EXP', e.ref_number)}</span> : null}
-                      {formatDate(e.date)}{e.paid_to ? ` · ${e.paid_to}` : ''}
+                      {formatDate(e.date)}{showCategoryChip ? '' : categoryMeta}{e.paid_to ? ` · ${e.paid_to}` : ''}
+                      {e._isLinkedAllocation ? ` · linked total PKR ${formatPKR(e.total_amount)}` : ''}
                     </p>
                     {e.notes && <p className="text-xs text-slate-400 mt-0.5 italic">{e.notes}</p>}
                   </div>

@@ -163,7 +163,7 @@ export interface Database {
         Row: {
           id: string
           action: 'CREATE' | 'UPDATE' | 'DELETE'
-          entity_type: 'transfer' | 'expense' | 'category' | 'project_part'
+          entity_type: 'transfer' | 'expense' | 'category' | 'project_part' | 'deal' | 'deal_revision'
           entity_id: string | null
           summary: string
           changes: Json | null
@@ -173,7 +173,7 @@ export interface Database {
         Insert: {
           id?: string
           action: 'CREATE' | 'UPDATE' | 'DELETE'
-          entity_type: 'transfer' | 'expense' | 'category' | 'project_part'
+          entity_type: 'transfer' | 'expense' | 'category' | 'project_part' | 'deal' | 'deal_revision'
           entity_id?: string | null
           summary: string
           changes?: Json | null
@@ -181,6 +181,39 @@ export interface Database {
           performed_at?: string
         }
         Update: never
+      }
+      deal_revisions: {
+        Row: {
+          id: string
+          deal_id: string
+          revision_number: number
+          scope_description: string
+          amount_delta: number
+          date: string
+          notes: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          deal_id: string
+          revision_number: number
+          scope_description: string
+          amount_delta: number
+          date?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          scope_description?: string
+          amount_delta?: number
+          date?: string
+          notes?: string | null
+          updated_at?: string
+        }
       }
     }
   }
@@ -193,6 +226,7 @@ export type Transfer = Database['public']['Tables']['transfers']['Row']
 export type Expense = Database['public']['Tables']['expenses']['Row']
 export type ExpenseAllocation = Database['public']['Tables']['expense_allocations']['Row']
 export type ActivityLog = Database['public']['Tables']['activity_logs']['Row']
+export type DealRevision = Database['public']['Tables']['deal_revisions']['Row']
 
 export interface Deal {
   id: string
@@ -213,4 +247,4 @@ export type ExpenseWithDetails = Expense & {
   categories: Category | null
   expense_allocations: (ExpenseAllocation & { project_parts: ProjectPart })[]
 }
-export type DealWithPart = Deal & { project_parts: ProjectPart }
+export type DealWithPart = Deal & { project_parts: ProjectPart; deal_revisions?: DealRevision[] }

@@ -34,10 +34,10 @@ Everything financial — transfers, expenses, deals — belongs to one or more p
 Money received by the supervisor from an owner for a specific part. The `part_id` is auto-resolved: when a transfer is recorded with a `from_person` name, the system looks up that person in the People list and uses their assigned project part. Owners must have a part assigned before transfers can be recorded for them.
 
 ### Expenses
-Money spent on the renovation. An expense has a total amount, a category, an optional `paid_to` (contractor/supplier name), and is split across one or more parts via `expense_allocations`. An expense can be split between parts with different amounts per part.
+Money spent on the renovation. An expense has a total amount, a category, an optional `paid_to` (contractor/supplier name), and is allocated to one or more parts via `expense_allocations`. A multi-part purchase is shown as linked per-part rows with the same reference number.
 
 ### Deals
-Agreed contracts with contractors. A deal records the agreed total for a piece of work (e.g., "Ground Floor Tiles — PKR 150,000"). The "paid" amount shown against a deal is computed from `expenses.paid_to` matching the deal's `person_name` — there is no direct payment table; expenses are the payment record.
+Agreed contracts with contractors. A deal records a piece of work and its revision history. The first revision is the original agreed scope; later revisions add or reduce scope with positive/negative amount deltas. Payments are still computed from `expenses.paid_to` matching the deal's `person_name` for the relevant part, so paid/remaining is shown at contractor+part level rather than per individual deal.
 
 ### People
 A contacts list used for autocomplete on `from_person` (transfers) and `paid_to` (expenses). Person types: `owner`, `contractor`, `employee`, `supplier`. Owners must have a `part_id` assigned — this is how transfers auto-resolve their part.
@@ -56,7 +56,7 @@ List of money received per owner per part. Sorted by date. Part filter persists 
 List of expenses with category filter tabs. Part filter persists in localStorage.
 
 ### Deals
-List of contractor deals. Summary card shows total agreed, paid, remaining for the visible set. Per-contractor summary cards with progress of payment. Part filter persists in localStorage.
+List of contractor deals grouped by contractor+part. Summary cards show group agreed, paid, remaining, with individual deals and revision timelines underneath. Part filter persists in localStorage.
 
 ### Reports
 Four tabs sharing a global part filter dropdown:
@@ -64,7 +64,7 @@ Four tabs sharing a global part filter dropdown:
 | Tab | Content |
 |-----|---------|
 | **Overview** | All-parts: balance cards per part + grand total. One part: colored balance card + category spending breakdown |
-| **Deals** | Per-contractor: agreed / paid / remaining. Multi-select to filter by contractor. Expandable to see individual deals. |
+| **Deals** | Per-contractor: agreed / paid / remaining. Expanded cards show contractor+part groups, individual deals, and revision timelines. |
 | **Categories** | Spending breakdown by category with progress bars. Multi-select to filter categories → flat transaction list. |
 | **People** | Expenses grouped by `paid_to`. Multi-select to filter contractors → flat transaction list. |
 
@@ -80,10 +80,10 @@ Basic CRUD for expense categories and project parts (supervisor only).
 
 ## Key Business Logic
 
-**Deal "paid" amount**: There is no payments table. The amount paid against a deal is the sum of all expenses where `paid_to = deal.person_name` for the relevant part(s). This means adding an expense with the correct `paid_to` automatically updates the deal's paid/remaining display.
+**Deal "paid" amount**: There is no payments table. The amount paid against deals is the sum of all expenses where `paid_to = deal.person_name` for the relevant part(s). This means adding an expense with the correct `paid_to` automatically updates the contractor+part paid/remaining display. Individual deals do not have separate paid balances unless future expense-to-deal linking is added.
 
 **Transfer part auto-resolution**: The transfer form only asks "from whom". The API looks up that person in `people` where `person_type = 'owner'` and uses their `part_id`. If the owner has no part assigned, the API returns a 400 with an actionable error message pointing to Settings → People.
 
-**Expense splits**: A single expense can be split across multiple parts. The `expense_allocations` table stores the per-part amounts. When a part filter is active, only that part's allocation amount is shown, not the total.
+**Expense allocations**: A single expense can be allocated across multiple parts. The `expense_allocations` table stores the per-part amounts. In transaction/expense lists, multi-part expenses appear as linked rows per part using the same reference number. When a part filter is active, only that part's allocation amount is shown, not the total.
 
 **Part filter persistence**: Each page saves its active part filter in localStorage under a page-specific key (`hisab_transactions_filter_part`, `hisab_expenses_filter_part`, `hisab_deals_filter_part`, `hisab_transfers_filter_part`, `hisab_reports_filter_part`).
