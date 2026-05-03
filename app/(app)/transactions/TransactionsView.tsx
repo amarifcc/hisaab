@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, TrendingDown, ChevronDown, ChevronUp, Clock, Pencil, Trash2, Search, X } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, TrendingDown, ChevronDown, ChevronUp, Clock, Pencil, Trash2, Search, X, CalendarDays, UserRound } from 'lucide-react'
 import { formatPKR, formatDate, fmtRef, cn } from '@/lib/utils'
 import TransferSheet from '@/components/TransferSheet'
 import ExpenseSheet from '@/components/ExpenseSheet'
+import NotesList from '@/components/NotesList'
 import type { ProjectPart, Category } from '@/lib/types'
 
 type AnyTransfer = Record<string, any>
@@ -406,11 +407,21 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {e.ref_number ? <span className="font-mono mr-1.5">{fmtRef('EXP', e.ref_number)}</span> : null}
-                        {formatDate(e.date)}{showCategoryChip ? '' : categoryMeta}{e.paid_to ? ` · ${e.paid_to}` : ''}
-                      </p>
-                      {e.notes && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{e.notes}</p>}
+                      <div className="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-400">
+                        {e.ref_number ? <span className="font-mono">{fmtRef('EXP', e.ref_number)}</span> : null}
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays size={11} className="text-slate-300" />
+                          {formatDate(e.date)}
+                        </span>
+                        {e.paid_to && (
+                          <span className="inline-flex items-center gap-1 min-w-0">
+                            <UserRound size={11} className="text-slate-300 flex-shrink-0" />
+                            <span className="truncate">{e.paid_to}</span>
+                          </span>
+                        )}
+                        {!showCategoryChip && categoryMeta && <span>{categoryMeta.replace(' · ', '')}</span>}
+                      </div>
+                      <NotesList notes={e.notes} className="text-slate-500" />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-2 flex-shrink-0">
@@ -450,7 +461,12 @@ export default function TransactionsView({ parts, transfers: initialTransfers, e
                           )}
                         </div>
                       )}
-                      {e.notes && <p><span className="text-slate-400">Notes:</span> {e.notes}</p>}
+                      {e.notes && (
+                        <div>
+                          <p className="text-slate-400">Notes:</p>
+                          <NotesList notes={e.notes} className="text-slate-500" />
+                        </div>
+                      )}
                     </div>
                     {isSupervisor && (
                       <div className="flex gap-2 pt-2 border-t border-slate-200">

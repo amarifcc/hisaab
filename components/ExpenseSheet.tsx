@@ -1,20 +1,23 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useState, useEffect } from 'react'
 import { X, SplitSquareHorizontal } from 'lucide-react'
 import { cn, formatPKR, amountHint } from '@/lib/utils'
 import PersonPicker from '@/components/PersonPicker'
-import type { ProjectPart, Category, Expense, ExpenseAllocation } from '@/lib/types'
+import NotesEditor from '@/components/NotesEditor'
+import type { ProjectPart, Category, ExpenseWithDetails } from '@/lib/types'
 
 interface Allocation { part_id: string; amount: string }
 
 interface Props {
   open: boolean
   onClose: () => void
-  onSaved: (data: any) => void
+  onSaved: (data: ExpenseWithDetails) => void
   parts: ProjectPart[]
   categories: Category[]
-  editing?: (Expense & { expense_allocations: (ExpenseAllocation & { project_parts: ProjectPart })[] }) | null
+  editing?: ExpenseWithDetails | null
 }
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -269,7 +272,6 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
                 <option value="">Select category…</option>
                 {(() => {
                   const groups = categories.filter(c => c.is_group)
-                  const groupIds = new Set(groups.map(g => g.id))
                   const ungrouped = categories.filter(c => !c.is_group && c.parent_id === null)
                   return (
                     <>
@@ -305,16 +307,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
           </div>
 
           {/* 5. Notes */}
-          <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Notes (optional)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Any notes…"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <NotesEditor value={notes} onChange={setNotes} label="Notes (optional)" placeholder="Add expense detail..." />
 
           {/* 6. Date */}
           <div>

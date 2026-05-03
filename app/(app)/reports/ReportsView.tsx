@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
-import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
 import DealRevisionSheet from '@/components/DealRevisionSheet'
+import NotesList from '@/components/NotesList'
 import type { ProjectPart, Category, Transfer, Expense, ExpenseAllocation, DealRevision, DealWithPart } from '@/lib/types'
 
 type TransferWithPart = Transfer & { project_parts: ProjectPart }
@@ -45,6 +46,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const [revisionDeal, setRevisionDeal] = useState<DealWithPart | null>(null)
   const [editingRevision, setEditingRevision] = useState<DealRevision | null>(null)
   const [editingDeal, setEditingDeal] = useState<DealWithPart | null>(null)
+  const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const addRef = useRef<HTMLDivElement>(null)
 
@@ -85,6 +87,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
 
   function openSheet(nextSheet: 'expense' | 'transfer' | 'deal') {
     if (nextSheet === 'deal') setEditingDeal(null)
+    if (nextSheet === 'expense') setEditingExpense(null)
     setSheet(nextSheet)
     setAddOpen(false)
   }
@@ -107,17 +110,35 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
     setRevisionDeal(deal)
   }
 
-  function addExpense(data: ExpenseWithDetails) {
-    setReportExpenses(prev => [data, ...prev])
-    if (!data.paid_to) return
-
-    setReportPaidMap(prev => {
-      const next = { ...prev, [data.paid_to!]: { ...(prev[data.paid_to!] ?? {}) } }
-      for (const allocation of data.expense_allocations ?? []) {
-        next[data.paid_to!][allocation.part_id] = (next[data.paid_to!][allocation.part_id] ?? 0) + Number(allocation.amount)
+  function rebuildPaidMap(nextExpenses: ExpenseWithDetails[]) {
+    const next: Record<string, Record<string, number>> = {}
+    for (const expense of nextExpenses) {
+      if (!expense.paid_to) continue
+      next[expense.paid_to] ??= {}
+      for (const allocation of expense.expense_allocations ?? []) {
+        next[expense.paid_to][allocation.part_id] = (next[expense.paid_to][allocation.part_id] ?? 0) + Number(allocation.amount)
       }
-      return next
-    })
+    }
+    setReportPaidMap(next)
+  }
+
+  function saveExpense(data: ExpenseWithDetails) {
+    if (editingExpense) {
+      setReportExpenses(prev => {
+        const next = prev.map(expense => expense.id === data.id ? data : expense)
+        rebuildPaidMap(next)
+        return next
+      })
+    } else {
+      const next = [data, ...reportExpenses]
+      setReportExpenses(next)
+      rebuildPaidMap(next)
+    }
+  }
+
+  function openEditExpense(expense: ExpenseWithDetails) {
+    setEditingExpense(expense)
+    setSheet('expense')
   }
 
   const TABS = [
@@ -224,22 +245,23 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
       {/* Report content */}
       <div className="space-y-2.5">
         {tab === 'parts' &&
-          <PartsReport transfers={scopedTransfers} expenses={scopedExpenses} parts={parts} categories={categories} selectedPart={selectedPart} />}
+          <PartsReport transfers={scopedTransfers} expenses={scopedExpenses} deals={scopedDeals} parts={parts} selectedPart={selectedPart} />}
         {tab === 'deals' &&
           <DealsReport deals={scopedDeals} expenses={reportExpenses} paidMap={reportPaidMap} selectedPart={selectedPart} isSupervisor={isSupervisor} onAddScope={openAddScope} onEditDeal={(deal) => { setEditingDeal(deal); setSheet('deal') }} onEditRevision={openEditRevision} />}
         {tab === 'categories' &&
-          <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} />}
+          <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
         {tab === 'people' &&
-          <PeopleReport expenses={scopedExpenses} getAmount={getAmount} selectedPart={selectedPart} />}
+          <PeopleReport expenses={scopedExpenses} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
         <p className="text-center text-xs text-slate-300 pt-1">Hisaab · {new Date().toLocaleDateString('en-PK')}</p>
       </div>
 
       <ExpenseSheet
         open={sheet === 'expense'}
-        onClose={() => setSheet(null)}
-        onSaved={addExpense}
+        onClose={() => { setSheet(null); setEditingExpense(null) }}
+        onSaved={saveExpense}
         parts={parts}
         categories={categories}
+        editing={editingExpense}
       />
       <TransferSheet
         open={sheet === 'transfer'}
@@ -321,6 +343,80 @@ function dealStatus(remaining: number) {
   }
 }
 
+function ExpenseMeta({ expense, showCategory = true, showPerson = true }: {
+  expense: ExpenseWithDetails
+  showCategory?: boolean
+  showPerson?: boolean
+}) {
+  return (
+    <div className="mt-1.5 space-y-1">
+      {showCategory && expense.categories && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: expense.categories.color }}>
+            {expense.categories.name}
+          </span>
+        </div>
+      )}
+      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-400">
+        {showPerson && expense.paid_to && (
+          <span className="inline-flex items-center gap-1 min-w-0">
+            <UserRound size={11} className="flex-shrink-0 text-slate-300" />
+            <span className="truncate">{expense.paid_to}</span>
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1">
+          <CalendarDays size={11} className="flex-shrink-0 text-slate-300" />
+          {formatDate(expense.date)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function ExpenseParts({ expense }: { expense: ExpenseWithDetails }) {
+  return (
+    <>
+      {expense.expense_allocations.map(allocation => (
+        <span
+          key={allocation.part_id}
+          className="text-xs px-1.5 py-0.5 rounded text-white flex-shrink-0"
+          style={{ backgroundColor: allocation.project_parts?.color }}
+        >
+          {allocation.project_parts?.short_name}
+        </span>
+      ))}
+    </>
+  )
+}
+
+function LinkedExpenseTag({ expense, selectedPart }: { expense: ExpenseWithDetails; selectedPart?: ProjectPart }) {
+  const allocationCount = expense.expense_allocations.length
+  if (allocationCount <= 1) return null
+
+  const allocationIndex = selectedPart
+    ? expense.expense_allocations.findIndex(allocation => allocation.part_id === selectedPart.id) + 1
+    : 0
+
+  return (
+    <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
+      {allocationIndex > 0 ? `linked ${allocationIndex} of ${allocationCount}` : `linked ${allocationCount} parts`}
+    </span>
+  )
+}
+
+function ShareMeter({ percent, color }: {
+  percent: number
+  color: string
+}) {
+  return (
+    <div className="mt-2" aria-label={`Expense share ${percent.toFixed(0)} percent`}>
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(percent, 100)}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  )
+}
+
 // ── Multi-select filter dropdown ──────────────────────────────────────────────
 
 function MultiSelectFilter({ noun, options, selected, onToggle, onClear }: {
@@ -394,10 +490,12 @@ function MultiSelectFilter({ noun, options, selected, onToggle, onClear }: {
 
 // ── People Report ─────────────────────────────────────────────────────────────
 
-function PeopleReport({ expenses, getAmount, selectedPart }: {
+function PeopleReport({ expenses, getAmount, selectedPart, isSupervisor, onEditExpense }: {
   expenses: ExpenseWithDetails[]
   getAmount: (e: ExpenseWithDetails) => number
   selectedPart?: ProjectPart
+  isSupervisor: boolean
+  onEditExpense: (expense: ExpenseWithDetails) => void
 }) {
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set())
 
@@ -453,7 +551,7 @@ function PeopleReport({ expenses, getAmount, selectedPart }: {
 
       {/* All-people view: expandable summary cards */}
       {!isFiltered && people.map(([name, { total, items }]) => (
-        <PersonCard key={name} name={name} total={total} items={items} grandTotal={grandTotal} getAmount={getAmount} />
+        <PersonCard key={name} name={name} total={total} items={items} grandTotal={grandTotal} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={onEditExpense} />
       ))}
 
       {/* Filtered view: flat transaction list */}
@@ -463,22 +561,21 @@ function PeopleReport({ expenses, getAmount, selectedPart }: {
             <div key={e.id} className={cn('flex items-center justify-between px-4 py-3', i > 0 && 'border-t border-slate-100')}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                  {selectedPeople.size > 1 && e.paid_to && (
-                    <span className="text-xs font-semibold text-violet-600">{e.paid_to}</span>
-                  )}
+                  <ExpenseParts expense={e} />
+                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
                   <p className="text-sm font-medium text-slate-800 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                 </div>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {e.expense_allocations.map(a => (
-                    <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
-                  ))}
-                  {e.categories && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
-                  )}
-                  <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
-                </div>
+                <ExpenseMeta expense={e} showPerson={selectedPeople.size > 1} />
+                <NotesList notes={e.notes} />
               </div>
-              <span className="text-sm font-bold text-rose-500 ml-3 flex-shrink-0">PKR {formatPKR(getAmount(e))}</span>
+              <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
+                <span className="text-sm font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                {isSupervisor && (
+                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                    <Pencil size={13} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -487,8 +584,10 @@ function PeopleReport({ expenses, getAmount, selectedPart }: {
   )
 }
 
-function PersonCard({ name, total, items, getAmount }: {
+function PersonCard({ name, total, items, getAmount, selectedPart, isSupervisor, onEditExpense }: {
   name: string; total: number; items: ExpenseWithDetails[]; grandTotal: number; getAmount: (e: ExpenseWithDetails) => number
+  selectedPart?: ProjectPart
+  isSupervisor: boolean; onEditExpense: (expense: ExpenseWithDetails) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -510,18 +609,22 @@ function PersonCard({ name, total, items, getAmount }: {
           {[...items].sort((a, b) => b.date.localeCompare(a.date)).map((e, i) => (
             <div key={e.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-700 truncate">{e.description || e.categories?.name || 'Expense'}</p>
-                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                  {e.expense_allocations.map(a => (
-                    <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
-                  ))}
-                  {e.categories && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
-                  )}
-                  <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <ExpenseParts expense={e} />
+                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
+                  <p className="text-xs font-medium text-slate-700 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                 </div>
+                <ExpenseMeta expense={e} showPerson={false} />
+                <NotesList notes={e.notes} />
               </div>
-              <span className="text-xs font-bold text-rose-500 ml-2 flex-shrink-0">PKR {formatPKR(getAmount(e))}</span>
+              <div className="ml-2 flex flex-col items-end gap-1 flex-shrink-0">
+                <span className="text-xs font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                {isSupervisor && (
+                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -532,11 +635,13 @@ function PersonCard({ name, total, items, getAmount }: {
 
 // ── Categories Report ─────────────────────────────────────────────────────────
 
-function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
+function CategoriesReport({ expenses, categories, getAmount, selectedPart, isSupervisor, onEditExpense }: {
   expenses: ExpenseWithDetails[]
   categories: Category[]
   getAmount: (e: ExpenseWithDetails) => number
   selectedPart?: ProjectPart
+  isSupervisor: boolean
+  onEditExpense: (expense: ExpenseWithDetails) => void
 }) {
   const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set())
 
@@ -605,7 +710,7 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
         const items = expenses.filter(e => e.category_id === cat.id).sort((a, b) => b.date.localeCompare(a.date))
         const pct = totalOut > 0 ? (total / totalOut) * 100 : 0
         return (
-          <CategoryCard key={cat.id} cat={cat} total={total} count={count} pct={pct} items={items} getAmount={getAmount} />
+          <CategoryCard key={cat.id} cat={cat} total={total} count={count} pct={pct} items={items} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={onEditExpense} />
         )
       })}
 
@@ -616,20 +721,24 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
             <div key={e.id} className={cn('flex items-center justify-between px-4 py-3', i > 0 && 'border-t border-slate-100')}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                  <ExpenseParts expense={e} />
+                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
                   {selectedCats.size > 1 && e.categories && (
                     <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
                   )}
                   <p className="text-sm font-medium text-slate-800 truncate">{e.description || e.categories?.name || 'Expense'}</p>
                 </div>
-                <div className="flex items-center gap-1 flex-wrap">
-                  {e.expense_allocations.map(a => (
-                    <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
-                  ))}
-                  {e.paid_to && <span className="text-xs text-slate-500 font-medium">{e.paid_to}</span>}
-                  <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
-                </div>
+                <ExpenseMeta expense={e} showCategory={selectedCats.size <= 1} />
+                <NotesList notes={e.notes} />
               </div>
-              <span className="text-sm font-bold text-rose-500 ml-3 flex-shrink-0">PKR {formatPKR(getAmount(e))}</span>
+              <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
+                <span className="text-sm font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                {isSupervisor && (
+                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                    <Pencil size={13} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -638,46 +747,62 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart }: {
   )
 }
 
-function CategoryCard({ cat, total, count, pct, items, getAmount }: {
+function CategoryCard({ cat, total, count, pct, items, getAmount, selectedPart, isSupervisor, onEditExpense }: {
   cat: Category; total: number; count: number; pct: number
   items: ExpenseWithDetails[]; getAmount: (e: ExpenseWithDetails) => number
+  selectedPart?: ProjectPart
+  isSupervisor: boolean; onEditExpense: (expense: ExpenseWithDetails) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-      <button className="w-full px-4 py-3.5 text-left" onClick={() => setExpanded(x => !x)}>
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full px-4 py-3.5 text-left"
+        onClick={() => setExpanded(x => !x)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            setExpanded(x => !x)
+          }
+        }}
+      >
         <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-            <span className="text-sm font-semibold text-slate-800">{cat.name}</span>
-            <span className="text-xs text-slate-400">{count} txn</span>
+            <span className="text-sm font-semibold text-slate-800 truncate">{cat.name}</span>
+            <span className="text-xs text-slate-400 flex-shrink-0">{count} txn</span>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
             <span className="text-sm font-bold text-slate-800">PKR {formatPKR(total)}</span>
-            <span className="text-xs text-slate-400">{pct.toFixed(0)}%</span>
           </div>
         </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
-        </div>
-      </button>
+        <ShareMeter percent={pct} color={cat.color} />
+      </div>
 
       {expanded && (
         <div className="border-t border-slate-100">
           {items.map((e, i) => (
             <div key={e.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-slate-700 truncate">{e.description || cat.name}</p>
-                <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                  {e.expense_allocations.map(a => (
-                    <span key={a.part_id} className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: a.project_parts?.color }}>{a.project_parts?.short_name}</span>
-                  ))}
-                  {e.paid_to && <span className="text-xs text-slate-500">{e.paid_to}</span>}
-                  <span className="text-xs text-slate-400">{formatDate(e.date)}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <ExpenseParts expense={e} />
+                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
+                  <p className="text-xs font-medium text-slate-700 truncate">{e.description || cat.name}</p>
                 </div>
+                <ExpenseMeta expense={e} showCategory={false} />
+                <NotesList notes={e.notes} />
               </div>
-              <span className="text-xs font-bold text-rose-500 ml-2 flex-shrink-0">PKR {formatPKR(getAmount(e))}</span>
+              <div className="ml-2 flex flex-col items-end gap-1 flex-shrink-0">
+                <span className="text-xs font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                {isSupervisor && (
+                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -688,11 +813,11 @@ function CategoryCard({ cat, total, count, pct, items, getAmount }: {
 
 // ── Parts Report (accumulative summary only) ──────────────────────────────────
 
-function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
+function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   transfers: TransferWithPart[]
   expenses: ExpenseWithDetails[]
+  deals: DealWithPart[]
   parts: ProjectPart[]
-  categories: Category[]
   selectedPart?: ProjectPart
 }) {
   // ── Single part view ──────────────────────────────────────────────────────
@@ -704,60 +829,124 @@ function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
     }, 0)
     const balance = deposited - spent
 
-    const catBreakdown = categories.map(c => ({
-      cat: c,
-      total: expenses.filter(e => e.category_id === c.id).reduce((s, e) => {
-        const alloc = e.expense_allocations.find(a => a.part_id === selectedPart.id)
-        return s + (alloc?.amount ?? 0)
-      }, 0),
-      count: expenses.filter(e => e.category_id === c.id).length,
-    })).filter(x => x.total > 0).sort((a, b) => b.total - a.total)
+    const topDeal = deals.reduce<DealWithPart | null>((top, deal) => {
+      if (!top || dealTotal(deal) > dealTotal(top)) return deal
+      return top
+    }, null)
+    const topExpense = expenses.reduce<{ expense: ExpenseWithDetails; amount: number } | null>((top, expense) => {
+      const alloc = expense.expense_allocations.find(a => a.part_id === selectedPart.id)
+      const amount = Number(alloc?.amount ?? expense.total_amount)
+      if (!top || amount > top.amount) return { expense, amount }
+      return top
+    }, null)
+    const recentItems = [
+      ...transfers.map(item => ({
+        id: `transfer-${item.id}`,
+        type: 'Transfer' as const,
+        label: item.from_person || 'Transfer received',
+        date: item.date,
+        amount: Number(item.amount),
+        tone: 'text-emerald-600',
+        icon: ArrowDownToLine,
+      })),
+      ...expenses.map(item => {
+        const alloc = item.expense_allocations.find(a => a.part_id === selectedPart.id)
+        return {
+          id: `expense-${item.id}`,
+          type: 'Expense' as const,
+          label: item.description || item.categories?.name || 'Expense',
+          date: item.date,
+          amount: Number(alloc?.amount ?? item.total_amount),
+          tone: 'text-rose-500',
+          icon: TrendingDown,
+        }
+      }),
+      ...deals.map(item => ({
+        id: `deal-${item.id}`,
+        type: 'Deal' as const,
+        label: item.name,
+        date: item.date,
+        amount: dealTotal(item),
+        tone: 'text-blue-600',
+        icon: Handshake,
+      })),
+    ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
+    const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
 
     return (
       <div className="space-y-2.5">
-        <div className="rounded-2xl p-4 text-white" style={{ backgroundColor: selectedPart.color }}>
-          <p className="text-xs font-semibold opacity-75 mb-2">{selectedPart.name} — Overview</p>
-          <p className={cn('text-2xl font-bold', balance < 0 && 'text-red-200')}>
-            {balance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(balance))}
-          </p>
-          <p className="text-xs opacity-75 mt-0.5">{balance >= 0 ? 'remaining balance' : 'deficit'}</p>
-          <div className="flex gap-5 mt-3 text-xs opacity-80">
-            <span>↓ {formatPKR(deposited)} deposited</span>
-            <span>↑ {formatPKR(spent)} spent</span>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3.5" style={{ borderLeft: `4px solid ${selectedPart.color}` }}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-slate-400 font-medium">{selectedPart.name} Balance</p>
+                <p className={cn('text-2xl font-bold mt-1', balance < 0 ? 'text-red-500' : 'text-emerald-600')}>
+                  {balance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(balance))}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">{balance >= 0 ? 'remaining balance' : 'deficit'}</p>
+              </div>
+              <span className="text-xs px-2 py-1 rounded-lg text-white flex-shrink-0" style={{ backgroundColor: selectedPart.color }}>
+                {selectedPart.short_name}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              <MiniMetric icon={Wallet} label="Received" value={`PKR ${formatPKR(deposited)}`} color="text-emerald-600" bg="bg-emerald-50" />
+              <MiniMetric icon={TrendingDown} label="Spent" value={`PKR ${formatPKR(spent)}`} color="text-rose-500" bg="bg-rose-50" />
+              <MiniMetric icon={Scale} label={balance < 0 ? 'Deficit' : 'Remaining'} value={`PKR ${formatPKR(Math.abs(balance))}`} color={balance < 0 ? 'text-red-500' : 'text-amber-600'} bg={balance < 0 ? 'bg-red-50' : 'bg-amber-50'} />
+            </div>
           </div>
           {deposited > 0 && (
-            <div className="mt-3">
-              <div className="h-1.5 bg-white/30 rounded-full overflow-hidden">
-                <div className="h-full bg-white/80 rounded-full"
-                  style={{ width: `${Math.min((spent / deposited) * 100, 100)}%` }} />
+            <div className="px-4 pb-3">
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${spentPct}%`, backgroundColor: selectedPart.color }} />
               </div>
-              <p className="text-xs opacity-60 mt-1">{((spent / deposited) * 100).toFixed(0)}% spent</p>
+              <div className="flex items-center justify-between mt-1 text-xs text-slate-400">
+                <span>{rawSpentPct.toFixed(0)}% spent</span>
+                <span>{balance < 0 ? 'over budget' : 'within deposits'}</span>
+              </div>
             </div>
           )}
         </div>
 
-        {catBreakdown.length > 0 && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
+            <p className="text-xs text-slate-400 font-medium">Top Deal</p>
+            <p className="text-base leading-snug font-bold text-blue-600 mt-1 line-clamp-2 break-words">
+              {topDeal ? topDeal.name : '-'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{topDeal ? `PKR ${formatPKR(dealTotal(topDeal))}` : 'none'}</p>
+          </div>
+          <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
+            <p className="text-xs text-slate-400 font-medium">Top Expense</p>
+            <p className="text-base leading-snug font-bold text-rose-500 mt-1 line-clamp-2 break-words">
+              {topExpense ? topExpense.expense.description || topExpense.expense.categories?.name || 'Expense' : '-'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{topExpense ? `PKR ${formatPKR(topExpense.amount)}` : 'none'}</p>
+          </div>
+        </div>
+
+        {recentItems.length > 0 && (
           <>
-            <p className="text-xs font-semibold text-slate-500 px-1">Spending by Category</p>
+            <p className="text-xs font-semibold text-slate-500 px-1">Recent Activity</p>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              {catBreakdown.map(({ cat, total, count }, i) => {
-                const pct = spent > 0 ? (total / spent) * 100 : 0
+              {recentItems.map((item, i) => {
+                const Icon = item.icon
                 return (
-                  <div key={cat.id} className={cn('px-4 py-3.5', i > 0 && 'border-t border-slate-100')}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cat.color }} />
-                        <span className="text-sm font-medium text-slate-800">{cat.name}</span>
-                        <span className="text-xs text-slate-400">{count} txn</span>
+                  <div key={item.id} className={cn('flex items-center justify-between gap-3 px-4 py-3', i > 0 && 'border-t border-slate-100')}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0">
+                        <Icon size={15} className={item.tone} />
                       </div>
-                      <div className="flex-shrink-0 ml-2">
-                        <span className="text-sm font-bold text-slate-800">PKR {formatPKR(total)}</span>
-                        <span className="text-xs text-slate-400 ml-1.5">{pct.toFixed(0)}%</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-semibold text-slate-400">{item.type}</span>
+                          <span className="text-[11px] text-slate-300">{formatDate(item.date)}</span>
+                        </div>
+                        <p className="text-sm font-medium text-slate-800 truncate">{item.label}</p>
                       </div>
                     </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: cat.color }} />
-                    </div>
+                    <span className={cn('text-xs font-bold flex-shrink-0', item.tone)}>PKR {formatPKR(item.amount)}</span>
                   </div>
                 )
               })}
@@ -765,7 +954,7 @@ function PartsReport({ transfers, expenses, parts, categories, selectedPart }: {
           </>
         )}
 
-        {catBreakdown.length === 0 && spent === 0 && deposited === 0 && (
+        {recentItems.length === 0 && spent === 0 && deposited === 0 && (
           <p className="text-center text-slate-400 text-sm py-8">No transactions for this part</p>
         )}
       </div>
@@ -1075,7 +1264,8 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                           <div key={revision.id} className="flex items-start justify-between gap-2 text-xs">
                             <div className="min-w-0">
                               <p className="text-slate-500 truncate">V{revision.revision_number} · {revision.scope_description}</p>
-                              <p className="text-slate-400">{formatDate(revision.date)}{revision.notes ? ` · ${revision.notes}` : ''}</p>
+                              <p className="text-slate-400">{formatDate(revision.date)}</p>
+                              <NotesList notes={revision.notes} />
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <span className={cn('font-semibold', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
@@ -1115,7 +1305,8 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                             <div key={e.id} className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 gap-2">
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-slate-700 truncate">{e.description}</p>
-                                <p className="text-[11px] text-slate-400">{formatDate(e.date)}{e.notes ? ` · ${e.notes}` : ''}</p>
+                                <p className="text-[11px] text-slate-400">{formatDate(e.date)}</p>
+                                <NotesList notes={e.notes} className="text-[11px]" />
                               </div>
                               <span className="text-xs font-bold text-emerald-600 flex-shrink-0">
                                 PKR {formatPKR(alloc?.amount ?? 0)}

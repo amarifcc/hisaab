@@ -1,9 +1,12 @@
 'use client'
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, TrendingDown, ChevronDown, Check } from 'lucide-react'
+import { Plus, Pencil, Trash2, TrendingDown, ChevronDown, Check, CalendarDays, UserRound } from 'lucide-react'
 import { formatPKR, formatDate, fmtRef, cn } from '@/lib/utils'
 import ExpenseSheet from '@/components/ExpenseSheet'
+import NotesList from '@/components/NotesList'
 import type { ProjectPart, Category, Expense, ExpenseAllocation } from '@/lib/types'
 
 type ExpenseWithDetails = Expense & {
@@ -104,7 +107,7 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
     return s + (alloc?.amount ?? 0)
   }, 0)
 
-  function handleSaved(data: any) {
+  function handleSaved(data: ExpenseWithDetails) {
     if (editing) {
       setExpenses(prev => prev.map(e => e.id === data.id ? data : e))
     } else {
@@ -294,12 +297,22 @@ export default function ExpensesList({ initialExpenses, parts, categories, isSup
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {e.ref_number ? <span className="font-mono mr-1.5">{fmtRef('EXP', e.ref_number)}</span> : null}
-                      {formatDate(e.date)}{showCategoryChip ? '' : categoryMeta}{e.paid_to ? ` · ${e.paid_to}` : ''}
-                      {e._isLinkedAllocation ? ` · linked total PKR ${formatPKR(e.total_amount)}` : ''}
-                    </p>
-                    {e.notes && <p className="text-xs text-slate-400 mt-0.5 italic">{e.notes}</p>}
+                    <div className="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap text-xs text-slate-400">
+                      {e.ref_number ? <span className="font-mono">{fmtRef('EXP', e.ref_number)}</span> : null}
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarDays size={11} className="text-slate-300" />
+                        {formatDate(e.date)}
+                      </span>
+                      {e.paid_to && (
+                        <span className="inline-flex items-center gap-1 min-w-0">
+                          <UserRound size={11} className="text-slate-300 flex-shrink-0" />
+                          <span className="truncate">{e.paid_to}</span>
+                        </span>
+                      )}
+                      {!showCategoryChip && categoryMeta && <span>{categoryMeta.replace(' · ', '')}</span>}
+                      {e._isLinkedAllocation ? <span>linked total PKR {formatPKR(e.total_amount)}</span> : ''}
+                    </div>
+                    <NotesList notes={e.notes} />
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1 ml-2 flex-shrink-0">

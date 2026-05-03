@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import { amountHint, cn, formatDate, formatPKR } from '@/lib/utils'
+import NotesEditor from '@/components/NotesEditor'
+import NotesList from '@/components/NotesList'
 import type { DealRevision, DealWithPart } from '@/lib/types'
 
 interface Props {
@@ -136,7 +138,8 @@ export default function DealRevisionSheet({ open, deal, editingRevision = null, 
                     <p className={cn('font-medium truncate', editingRevision?.id === revision.id ? 'text-blue-700' : 'text-slate-600')}>
                       V{revision.revision_number} · {revision.scope_description}
                     </p>
-                    <p className="text-slate-400">{formatDate(revision.date)}{revision.notes ? ` · ${revision.notes}` : ''}</p>
+                    <p className="text-slate-400">{formatDate(revision.date)}</p>
+                    <NotesList notes={revision.notes} />
                   </div>
                   <span className={cn('font-bold flex-shrink-0', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
                     {revision.amount_delta > 0 ? '+' : '−'}PKR {formatPKR(Math.abs(revision.amount_delta))}
@@ -193,16 +196,7 @@ export default function DealRevisionSheet({ open, deal, editingRevision = null, 
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Notes (optional)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Any notes..."
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <NotesEditor value={notes} onChange={setNotes} label="Notes (optional)" placeholder="Add scope detail..." />
 
           <div>
             <label className="text-xs font-medium text-slate-500 mb-1 block">Revision Date</label>

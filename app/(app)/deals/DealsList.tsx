@@ -6,6 +6,7 @@ import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import DealSheet from '@/components/DealSheet'
 import DealRevisionSheet from '@/components/DealRevisionSheet'
+import NotesList from '@/components/NotesList'
 import type { ProjectPart, DealRevision, DealWithPart } from '@/lib/types'
 
 interface PaymentRow {
@@ -344,7 +345,8 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
                           <div key={revision.id} className="flex items-start justify-between gap-3 text-xs">
                             <div className="min-w-0">
                               <p className="font-medium text-slate-600 truncate">V{revision.revision_number} · {revision.scope_description}</p>
-                              <p className="text-slate-400">{formatDate(revision.date)}{revision.notes ? ` · ${revision.notes}` : ''}</p>
+                              <p className="text-slate-400">{formatDate(revision.date)}</p>
+                              <NotesList notes={revision.notes} />
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
                               <span className={cn('font-bold', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
@@ -387,7 +389,8 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-xs font-medium text-slate-700 truncate">{e.description}</p>
-                                    <p className="text-[11px] text-slate-400">{formatDate(e.date)}{e.notes ? ` · ${e.notes}` : ''}</p>
+                                    <p className="text-[11px] text-slate-400">{formatDate(e.date)}</p>
+                                    <NotesList notes={e.notes} className="text-[11px]" />
                                   </div>
                                 </div>
                                 <span className="text-xs font-bold text-emerald-600 flex-shrink-0">
