@@ -373,10 +373,51 @@ function ExpenseMeta({ expense, showCategory = true, showPerson = true }: {
   )
 }
 
-function ExpenseParts({ expense }: { expense: ExpenseWithDetails }) {
+type ExpenseDisplayRow = {
+  id: string
+  expense: ExpenseWithDetails
+  allocation?: ExpenseWithDetails['expense_allocations'][number]
+  amount: number
+  allocationIndex: number
+  allocationCount: number
+}
+
+function getExpenseDisplayRows(expenses: ExpenseWithDetails[], selectedPart?: ProjectPart): ExpenseDisplayRow[] {
+  return expenses.flatMap(expense => {
+    const allocations = expense.expense_allocations ?? []
+    const visibleAllocations = selectedPart
+      ? allocations.filter(allocation => allocation.part_id === selectedPart.id)
+      : allocations
+
+    if (selectedPart && visibleAllocations.length === 0) return []
+    if (allocations.length <= 1) {
+      const allocation = visibleAllocations[0] ?? allocations[0]
+      return [{
+        id: expense.id,
+        expense,
+        allocation,
+        amount: Number(allocation?.amount ?? expense.total_amount),
+        allocationIndex: allocation ? allocations.findIndex(item => item.part_id === allocation.part_id) + 1 : 0,
+        allocationCount: allocations.length,
+      }]
+    }
+
+    return visibleAllocations.map(allocation => ({
+      id: `${expense.id}-${allocation.part_id}`,
+      expense,
+      allocation,
+      amount: Number(allocation.amount),
+      allocationIndex: allocations.findIndex(item => item.part_id === allocation.part_id) + 1,
+      allocationCount: allocations.length,
+    }))
+  })
+}
+
+function ExpenseParts({ row }: { row: ExpenseDisplayRow }) {
+  const allocations = row.allocation ? [row.allocation] : row.expense.expense_allocations
   return (
     <>
-      {expense.expense_allocations.map(allocation => (
+      {allocations.map(allocation => (
         <span
           key={allocation.part_id}
           className="text-xs px-1.5 py-0.5 rounded text-white flex-shrink-0"
@@ -389,17 +430,12 @@ function ExpenseParts({ expense }: { expense: ExpenseWithDetails }) {
   )
 }
 
-function LinkedExpenseTag({ expense, selectedPart }: { expense: ExpenseWithDetails; selectedPart?: ProjectPart }) {
-  const allocationCount = expense.expense_allocations.length
-  if (allocationCount <= 1) return null
-
-  const allocationIndex = selectedPart
-    ? expense.expense_allocations.findIndex(allocation => allocation.part_id === selectedPart.id) + 1
-    : 0
+function LinkedExpenseTag({ row }: { row: ExpenseDisplayRow }) {
+  if (row.allocationCount <= 1) return null
 
   return (
     <span className="text-[11px] font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0">
-      {allocationIndex > 0 ? `linked ${allocationIndex} of ${allocationCount}` : `linked ${allocationCount} parts`}
+      linked {row.allocationIndex} of {row.allocationCount}
     </span>
   )
 }
@@ -523,7 +559,8 @@ function PeopleReport({ expenses, getAmount, selectedPart, isSupervisor, onEditE
   const isFiltered = selectedPeople.size > 0
   const visiblePeople = isFiltered ? people.filter(([name]) => selectedPeople.has(name)) : people
   const filteredTotal = visiblePeople.reduce((s, [, v]) => s + v.total, 0)
-  const filteredItems = visiblePeople.flatMap(([, v]) => v.items).sort((a, b) => b.date.localeCompare(a.date))
+  const filteredRows = getExpenseDisplayRows(visiblePeople.flatMap(([, v]) => v.items), selectedPart)
+    .sort((a, b) => b.expense.date.localeCompare(a.expense.date))
 
   const subLabel = selectedPart ? selectedPart.name : 'All Parts'
 
@@ -541,7 +578,7 @@ function PeopleReport({ expenses, getAmount, selectedPart, isSupervisor, onEditE
         label={isFiltered ? `Paid to ${selectedPeople.size === 1 ? [...selectedPeople][0] : `${selectedPeople.size} people`}` : 'Total Paid Out'}
         value={`PKR ${formatPKR(filteredTotal)}`}
         sub={isFiltered
-          ? `${filteredItems.length} transactions · ${subLabel}`
+          ? `${filteredRows.length} transactions · ${subLabel}`
           : `${people.length} ${people.length === 1 ? 'person' : 'people'} · ${subLabel}`}
       />
 
@@ -551,27 +588,27 @@ function PeopleReport({ expenses, getAmount, selectedPart, isSupervisor, onEditE
 
       {/* All-people view: expandable summary cards */}
       {!isFiltered && people.map(([name, { total, items }]) => (
-        <PersonCard key={name} name={name} total={total} items={items} grandTotal={grandTotal} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={onEditExpense} />
+        <PersonCard key={name} name={name} total={total} items={items} grandTotal={grandTotal} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={onEditExpense} />
       ))}
 
       {/* Filtered view: flat transaction list */}
-      {isFiltered && filteredItems.length > 0 && (
+      {isFiltered && filteredRows.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          {filteredItems.map((e, i) => (
-            <div key={e.id} className={cn('flex items-center justify-between px-4 py-3', i > 0 && 'border-t border-slate-100')}>
+          {filteredRows.map((row, i) => (
+            <div key={row.id} className={cn('flex items-center justify-between px-4 py-3', i > 0 && 'border-t border-slate-100')}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                  <ExpenseParts expense={e} />
-                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
-                  <p className="text-sm font-medium text-slate-800 truncate">{e.description || e.categories?.name || 'Expense'}</p>
+                  <ExpenseParts row={row} />
+                  <LinkedExpenseTag row={row} />
+                  <p className="text-sm font-medium text-slate-800 truncate">{row.expense.description || row.expense.categories?.name || 'Expense'}</p>
                 </div>
-                <ExpenseMeta expense={e} showPerson={selectedPeople.size > 1} />
-                <NotesList notes={e.notes} />
+                <ExpenseMeta expense={row.expense} showPerson={selectedPeople.size > 1} />
+                <NotesList notes={row.expense.notes} />
               </div>
               <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
-                <span className="text-sm font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                <span className="text-sm font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
                 {isSupervisor && (
-                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                  <button onClick={() => onEditExpense(row.expense)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
                     <Pencil size={13} />
                   </button>
                 )}
@@ -584,8 +621,8 @@ function PeopleReport({ expenses, getAmount, selectedPart, isSupervisor, onEditE
   )
 }
 
-function PersonCard({ name, total, items, getAmount, selectedPart, isSupervisor, onEditExpense }: {
-  name: string; total: number; items: ExpenseWithDetails[]; grandTotal: number; getAmount: (e: ExpenseWithDetails) => number
+function PersonCard({ name, total, items, selectedPart, isSupervisor, onEditExpense }: {
+  name: string; total: number; items: ExpenseWithDetails[]; grandTotal: number
   selectedPart?: ProjectPart
   isSupervisor: boolean; onEditExpense: (expense: ExpenseWithDetails) => void
 }) {
@@ -606,21 +643,21 @@ function PersonCard({ name, total, items, getAmount, selectedPart, isSupervisor,
 
       {expanded && (
         <div className="border-t border-slate-100">
-          {[...items].sort((a, b) => b.date.localeCompare(a.date)).map((e, i) => (
-            <div key={e.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
+          {getExpenseDisplayRows([...items].sort((a, b) => b.date.localeCompare(a.date)), selectedPart).map((row, i) => (
+            <div key={row.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <ExpenseParts expense={e} />
-                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
-                  <p className="text-xs font-medium text-slate-700 truncate">{e.description || e.categories?.name || 'Expense'}</p>
+                  <ExpenseParts row={row} />
+                  <LinkedExpenseTag row={row} />
+                  <p className="text-xs font-medium text-slate-700 truncate">{row.expense.description || row.expense.categories?.name || 'Expense'}</p>
                 </div>
-                <ExpenseMeta expense={e} showPerson={false} />
-                <NotesList notes={e.notes} />
+                <ExpenseMeta expense={row.expense} showPerson={false} />
+                <NotesList notes={row.expense.notes} />
               </div>
               <div className="ml-2 flex flex-col items-end gap-1 flex-shrink-0">
-                <span className="text-xs font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                <span className="text-xs font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
                 {isSupervisor && (
-                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                  <button onClick={() => onEditExpense(row.expense)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
                     <Pencil size={12} />
                   </button>
                 )}
@@ -652,7 +689,7 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart, isSup
   const breakdown = leafCategories.map(c => ({
     cat: c,
     total: expenses.filter(e => e.category_id === c.id).reduce((s, e) => s + getAmount(e), 0),
-    count: expenses.filter(e => e.category_id === c.id).length,
+    count: getExpenseDisplayRows(expenses.filter(e => e.category_id === c.id), selectedPart).length,
   })).filter(x => x.total > 0).sort((a, b) => b.total - a.total)
 
   const catOptions = breakdown.map(({ cat }) => ({ id: cat.id, label: cat.name, color: cat.color }))
@@ -667,11 +704,11 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart, isSup
   }
 
   const isFiltered = selectedCats.size > 0
-  const filteredExpenses = isFiltered
-    ? [...expenses.filter(e => selectedCats.has(e.category_id ?? ''))].sort((a, b) => b.date.localeCompare(a.date))
+  const filteredRows = isFiltered
+    ? getExpenseDisplayRows([...expenses.filter(e => selectedCats.has(e.category_id ?? ''))].sort((a, b) => b.date.localeCompare(a.date)), selectedPart)
     : []
   const filteredTotal = isFiltered
-    ? filteredExpenses.reduce((s, e) => s + getAmount(e), 0)
+    ? filteredRows.reduce((s, row) => s + row.amount, 0)
     : totalOut
 
   const subLabel = selectedPart ? selectedPart.name : 'All Parts'
@@ -694,7 +731,7 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart, isSup
           : 'Total Expenses'}
         value={`PKR ${formatPKR(filteredTotal)}`}
         sub={isFiltered
-          ? `${filteredExpenses.length} transactions · ${subLabel}`
+          ? `${filteredRows.length} transactions · ${subLabel}`
           : `${breakdown.length} categories · ${subLabel}`}
         color={isFiltered && selectedCats.size === 1
           ? breakdown.find(b => selectedCats.has(b.cat.id))?.cat.color
@@ -707,34 +744,34 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart, isSup
 
       {/* All-categories view: expandable category cards */}
       {!isFiltered && breakdown.map(({ cat, total, count }) => {
-        const items = expenses.filter(e => e.category_id === cat.id).sort((a, b) => b.date.localeCompare(a.date))
+        const rows = getExpenseDisplayRows(expenses.filter(e => e.category_id === cat.id).sort((a, b) => b.date.localeCompare(a.date)), selectedPart)
         const pct = totalOut > 0 ? (total / totalOut) * 100 : 0
         return (
-          <CategoryCard key={cat.id} cat={cat} total={total} count={count} pct={pct} items={items} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={onEditExpense} />
+          <CategoryCard key={cat.id} cat={cat} total={total} count={count} pct={pct} rows={rows} isSupervisor={isSupervisor} onEditExpense={onEditExpense} />
         )
       })}
 
       {/* Filtered view: flat transaction list grouped by category */}
-      {isFiltered && filteredExpenses.length > 0 && (
+      {isFiltered && filteredRows.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          {filteredExpenses.map((e, i) => (
-            <div key={e.id} className={cn('flex items-center justify-between px-4 py-3', i > 0 && 'border-t border-slate-100')}>
+          {filteredRows.map((row, i) => (
+            <div key={row.id} className={cn('flex items-center justify-between px-4 py-3', i > 0 && 'border-t border-slate-100')}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                  <ExpenseParts expense={e} />
-                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
-                  {selectedCats.size > 1 && e.categories && (
-                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: e.categories.color }}>{e.categories.name}</span>
+                  <ExpenseParts row={row} />
+                  <LinkedExpenseTag row={row} />
+                  {selectedCats.size > 1 && row.expense.categories && (
+                    <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: row.expense.categories.color }}>{row.expense.categories.name}</span>
                   )}
-                  <p className="text-sm font-medium text-slate-800 truncate">{e.description || e.categories?.name || 'Expense'}</p>
+                  <p className="text-sm font-medium text-slate-800 truncate">{row.expense.description || row.expense.categories?.name || 'Expense'}</p>
                 </div>
-                <ExpenseMeta expense={e} showCategory={selectedCats.size <= 1} />
-                <NotesList notes={e.notes} />
+                <ExpenseMeta expense={row.expense} showCategory={selectedCats.size <= 1} />
+                <NotesList notes={row.expense.notes} />
               </div>
               <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
-                <span className="text-sm font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                <span className="text-sm font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
                 {isSupervisor && (
-                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                  <button onClick={() => onEditExpense(row.expense)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
                     <Pencil size={13} />
                   </button>
                 )}
@@ -747,10 +784,9 @@ function CategoriesReport({ expenses, categories, getAmount, selectedPart, isSup
   )
 }
 
-function CategoryCard({ cat, total, count, pct, items, getAmount, selectedPart, isSupervisor, onEditExpense }: {
+function CategoryCard({ cat, total, count, pct, rows, isSupervisor, onEditExpense }: {
   cat: Category; total: number; count: number; pct: number
-  items: ExpenseWithDetails[]; getAmount: (e: ExpenseWithDetails) => number
-  selectedPart?: ProjectPart
+  rows: ExpenseDisplayRow[]
   isSupervisor: boolean; onEditExpense: (expense: ExpenseWithDetails) => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -784,21 +820,21 @@ function CategoryCard({ cat, total, count, pct, items, getAmount, selectedPart, 
 
       {expanded && (
         <div className="border-t border-slate-100">
-          {items.map((e, i) => (
-            <div key={e.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
+          {rows.map((row, i) => (
+            <div key={row.id} className={cn('flex items-center justify-between px-4 py-2.5', i > 0 && 'border-t border-slate-50')}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <ExpenseParts expense={e} />
-                  <LinkedExpenseTag expense={e} selectedPart={selectedPart} />
-                  <p className="text-xs font-medium text-slate-700 truncate">{e.description || cat.name}</p>
+                  <ExpenseParts row={row} />
+                  <LinkedExpenseTag row={row} />
+                  <p className="text-xs font-medium text-slate-700 truncate">{row.expense.description || cat.name}</p>
                 </div>
-                <ExpenseMeta expense={e} showCategory={false} />
-                <NotesList notes={e.notes} />
+                <ExpenseMeta expense={row.expense} showCategory={false} />
+                <NotesList notes={row.expense.notes} />
               </div>
               <div className="ml-2 flex flex-col items-end gap-1 flex-shrink-0">
-                <span className="text-xs font-bold text-rose-500">PKR {formatPKR(getAmount(e))}</span>
+                <span className="text-xs font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
                 {isSupervisor && (
-                  <button onClick={() => onEditExpense(e)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
+                  <button onClick={() => onEditExpense(row.expense)} className="text-slate-400 active:text-blue-600" title="Edit expense" aria-label="Edit expense">
                     <Pencil size={12} />
                   </button>
                 )}
@@ -820,6 +856,8 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   parts: ProjectPart[]
   selectedPart?: ProjectPart
 }) {
+  const [recentTab, setRecentTab] = useState<'transactions' | 'deals'>('transactions')
+
   // ── Single part view ──────────────────────────────────────────────────────
   if (selectedPart) {
     const deposited = transfers.reduce((s, t) => s + t.amount, 0)
@@ -839,7 +877,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       if (!top || amount > top.amount) return { expense, amount }
       return top
     }, null)
-    const recentItems = [
+    const recentTransactions = [
       ...transfers.map(item => ({
         id: `transfer-${item.id}`,
         type: 'Transfer' as const,
@@ -861,7 +899,8 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
           icon: TrendingDown,
         }
       }),
-      ...deals.map(item => ({
+    ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    const recentDeals = deals.map(item => ({
         id: `deal-${item.id}`,
         type: 'Deal' as const,
         label: item.name,
@@ -869,8 +908,8 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
         amount: dealTotal(item),
         tone: 'text-blue-600',
         icon: Handshake,
-      })),
-    ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+      })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    const recentItems = recentTab === 'transactions' ? recentTransactions : recentDeals
     const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
     const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
 
@@ -911,24 +950,43 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
 
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
-            <p className="text-xs text-slate-400 font-medium">Top Deal</p>
-            <p className="text-base leading-snug font-bold text-blue-600 mt-1 line-clamp-2 break-words">
-              {topDeal ? topDeal.name : '-'}
-            </p>
-            <p className="text-xs text-slate-400 mt-1">{topDeal ? `PKR ${formatPKR(dealTotal(topDeal))}` : 'none'}</p>
-          </div>
-          <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
             <p className="text-xs text-slate-400 font-medium">Top Expense</p>
             <p className="text-base leading-snug font-bold text-rose-500 mt-1 line-clamp-2 break-words">
               {topExpense ? topExpense.expense.description || topExpense.expense.categories?.name || 'Expense' : '-'}
             </p>
             <p className="text-xs text-slate-400 mt-1">{topExpense ? `PKR ${formatPKR(topExpense.amount)}` : 'none'}</p>
           </div>
+          <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
+            <p className="text-xs text-slate-400 font-medium">Top Deal</p>
+            <p className="text-base leading-snug font-bold text-blue-600 mt-1 line-clamp-2 break-words">
+              {topDeal ? topDeal.name : '-'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">{topDeal ? `PKR ${formatPKR(dealTotal(topDeal))}` : 'none'}</p>
+          </div>
         </div>
 
         {recentItems.length > 0 && (
           <>
-            <p className="text-xs font-semibold text-slate-500 px-1">Recent Activity</p>
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
+              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+                {[
+                  { id: 'transactions' as const, label: 'Transactions', count: recentTransactions.length },
+                  { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setRecentTab(item.id)}
+                    className={cn(
+                      'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                      recentTab === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                    )}
+                  >
+                    {item.label} {item.count}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               {recentItems.map((item, i) => {
                 const Icon = item.icon
@@ -954,7 +1012,33 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
           </>
         )}
 
-        {recentItems.length === 0 && spent === 0 && deposited === 0 && (
+        {recentItems.length === 0 && (recentTransactions.length > 0 || recentDeals.length > 0) && (
+          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm px-4 py-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
+              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+                {[
+                  { id: 'transactions' as const, label: 'Transactions', count: recentTransactions.length },
+                  { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setRecentTab(item.id)}
+                    className={cn(
+                      'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                      recentTab === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                    )}
+                  >
+                    {item.label} {item.count}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-sm text-slate-400 mt-3">No recent {recentTab === 'transactions' ? 'transactions' : 'deals'} for this part.</p>
+          </div>
+        )}
+
+        {recentTransactions.length === 0 && recentDeals.length === 0 && spent === 0 && deposited === 0 && (
           <p className="text-center text-slate-400 text-sm py-8">No transactions for this part</p>
         )}
       </div>
