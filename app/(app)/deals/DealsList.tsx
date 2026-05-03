@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, Handshake, ListPlus, Search, X, Flag, CheckCircle2, Clock3, Receipt } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, Handshake, Search, X, Flag, CheckCircle2, Clock3, Receipt } from 'lucide-react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import DealSheet from '@/components/DealSheet'
 import DealRevisionSheet from '@/components/DealRevisionSheet'
-import type { ProjectPart, DealWithPart } from '@/lib/types'
+import type { ProjectPart, DealRevision, DealWithPart } from '@/lib/types'
 
 interface PaymentRow {
   id: string
@@ -33,6 +33,7 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<DealWithPart | null>(null)
   const [revisionDeal, setRevisionDeal] = useState<DealWithPart | null>(null)
+  const [editingRevision, setEditingRevision] = useState<DealRevision | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set())
   const [contractorQuery, setContractorQuery] = useState('')
@@ -106,6 +107,16 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
 
   function handleRevisionSaved(data: DealWithPart) {
     setDeals(prev => prev.map(d => d.id === data.id ? data : d))
+  }
+
+  function openAddScope(deal: DealWithPart) {
+    setEditingRevision(null)
+    setRevisionDeal(deal)
+  }
+
+  function openEditRevision(deal: DealWithPart, revision: DealRevision) {
+    setEditingRevision(revision)
+    setRevisionDeal(deal)
   }
 
   function toggleGroup(key: string) {
@@ -315,15 +326,13 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-slate-900 truncate">{d.name}</p>
-                            <p className="text-xs text-slate-400 mt-0.5">{formatDate(d.date)}</p>
-                            {d.notes && <p className="text-xs text-slate-400 italic mt-0.5">{d.notes}</p>}
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
                           <span className="text-blue-600 font-bold text-sm">PKR {formatPKR(dealTotal(d))}</span>
                           {isSupervisor && (
                             <div className="flex gap-2">
-                              <button onClick={() => setRevisionDeal(d)} className="text-slate-400 active:text-blue-600"><ListPlus size={14} /></button>
+                              <button onClick={() => openAddScope(d)} className="text-slate-400 active:text-blue-600" title="Add scope" aria-label="Add scope"><Plus size={15} /></button>
                               <button onClick={() => { setEditing(d); setSheetOpen(true) }} className="text-slate-400 active:text-blue-600"><Pencil size={14} /></button>
                               <button onClick={() => handleDelete(d.id)} className="text-slate-400 active:text-red-600"><Trash2 size={14} /></button>
                             </div>
@@ -337,9 +346,16 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
                               <p className="font-medium text-slate-600 truncate">V{revision.revision_number} · {revision.scope_description}</p>
                               <p className="text-slate-400">{formatDate(revision.date)}{revision.notes ? ` · ${revision.notes}` : ''}</p>
                             </div>
-                            <span className={cn('font-bold flex-shrink-0', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
-                              {revision.amount_delta > 0 ? '+' : '−'}PKR {formatPKR(Math.abs(revision.amount_delta))}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={cn('font-bold', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
+                                {revision.amount_delta > 0 ? '+' : '−'}PKR {formatPKR(Math.abs(revision.amount_delta))}
+                              </span>
+                              {isSupervisor && (
+                                <button onClick={() => openEditRevision(d, revision)} className="text-slate-400 active:text-blue-600" title={`Edit V${revision.revision_number}`} aria-label={`Edit V${revision.revision_number}`}>
+                                  <Pencil size={12} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -398,12 +414,13 @@ export default function DealsList({ initialDeals, parts, paidMap, isSupervisor, 
         parts={parts}
         editing={editing}
         existingDeals={deals}
-        onAddScope={setRevisionDeal}
+        onAddScope={openAddScope}
       />
       <DealRevisionSheet
         open={!!revisionDeal}
         deal={revisionDeal}
-        onClose={() => setRevisionDeal(null)}
+        editingRevision={editingRevision}
+        onClose={() => { setRevisionDeal(null); setEditingRevision(null) }}
         onSaved={handleRevisionSaved}
       />
     </div>

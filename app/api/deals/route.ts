@@ -87,14 +87,23 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const { data: before } = await supabase.from('deals').select('*').eq('id', id).single()
-  const { data, error } = await supabase.from('deals').update({
+  const update: {
+    name: string
+    person_name: string | null
+    part_id: string
+    date?: string
+    notes?: string | null
+    updated_at: string
+  } = {
     name: name.trim(),
     person_name: person_name?.trim() || null,
     part_id,
-    date,
-    notes: notes || null,
     updated_at: new Date().toISOString(),
-  }).eq('id', id).select().single()
+  }
+  if (date) update.date = date
+  if (notes !== undefined) update.notes = notes || null
+
+  const { data, error } = await supabase.from('deals').update(update).eq('id', id).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const enriched = await selectDeal(supabase, id)
@@ -114,13 +123,54 @@ export async function PATCH(req: Request) {
   if (!user || !isSupervisor(profile))
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { id, scope_description, amount_delta, date, notes } = await req.json()
+  const { id, revision_id, scope_description, amount_delta, date, notes } = await req.json()
   const delta = Number(amount_delta)
   if (!id || !scope_description?.trim() || !delta)
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const { data: deal, error: dealError } = await supabase.from('deals').select('*').eq('id', id).single()
   if (dealError || !deal) return NextResponse.json({ error: 'Deal not found' }, { status: 404 })
+
+  if (revision_id) {
+    const { data: before, error: revisionError } = await supabase
+      .from('deal_revisions')
+      .select('*')
+      .eq('id', revision_id)
+      .eq('deal_id', id)
+      .single()
+
+    if (revisionError || !before) return NextResponse.json({ error: 'Revision not found' }, { status: 404 })
+
+    const currentTotal = await getDealTotal(supabase, id, Number(deal.agreed_amount))
+    const nextTotal = currentTotal - Number(before.amount_delta) + delta
+    if (nextTotal < 0)
+      return NextResponse.json({ error: 'Revision would make agreed total negative' }, { status: 400 })
+
+    const { data: revision, error } = await supabase.from('deal_revisions').update({
+      scope_description: scope_description.trim(),
+      amount_delta: delta,
+      date: date || before.date,
+      notes: notes || null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', revision_id).eq('deal_id', id).select().single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await supabase.from('deals').update({
+      agreed_amount: nextTotal,
+      updated_at: new Date().toISOString(),
+    }).eq('id', id)
+
+    await supabase.from('activity_logs').insert({
+      action: 'UPDATE', entity_type: 'deal_revision', entity_id: revision.id,
+      summary: `Updated V${revision.revision_number} for "${deal.name}"`,
+      changes: { before, after: revision },
+      performed_by: user.id,
+    })
+
+    const data = await selectDeal(supabase, id)
+    return NextResponse.json(data ?? { ...deal, deal_revisions: [revision] })
+  }
 
   const currentTotal = await getDealTotal(supabase, id, Number(deal.agreed_amount))
   if (currentTotal + delta < 0)

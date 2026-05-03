@@ -1,21 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+/* eslint-disable react-hooks/set-state-in-effect */
+
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import { amountHint, cn, formatDate, formatPKR } from '@/lib/utils'
-import type { DealWithPart } from '@/lib/types'
+import type { DealRevision, DealWithPart } from '@/lib/types'
 
 interface Props {
   open: boolean
   deal: DealWithPart | null
+  editingRevision?: DealRevision | null
   onClose: () => void
   onSaved: (data: DealWithPart) => void
 }
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Props) {
+export default function DealRevisionSheet({ open, deal, editingRevision = null, onClose, onSaved }: Props) {
   const [scopeDescription, setScopeDescription] = useState('')
   const [amountDelta, setAmountDelta] = useState('')
   const [mode, setMode] = useState<'increase' | 'decrease'>('increase')
@@ -23,6 +26,20 @@ export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Prop
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const isEditing = !!editingRevision
+
+  useEffect(() => {
+    if (!open) return
+    if (editingRevision) {
+      setScopeDescription(editingRevision.scope_description)
+      setAmountDelta(String(Math.abs(Number(editingRevision.amount_delta))))
+      setMode(Number(editingRevision.amount_delta) < 0 ? 'decrease' : 'increase')
+      setDate(editingRevision.date)
+      setNotes(editingRevision.notes ?? '')
+    } else {
+      resetForm()
+    }
+  }, [editingRevision, open])
 
   function resetForm() {
     setScopeDescription('')
@@ -50,11 +67,18 @@ export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Prop
     const signedAmount = mode === 'decrease' ? -amount : amount
     const res = await fetch('/api/deals', {
       method: 'PATCH',
-      body: JSON.stringify({ id: deal.id, scope_description: scopeDescription, amount_delta: signedAmount, date, notes }),
+      body: JSON.stringify({
+        id: deal.id,
+        revision_id: editingRevision?.id,
+        scope_description: scopeDescription,
+        amount_delta: signedAmount,
+        date,
+        notes,
+      }),
       headers: { 'Content-Type': 'application/json' },
     })
     setLoading(false)
-    if (!res.ok) { const data = await res.json(); setError(data.error || 'Failed to add scope'); return }
+    if (!res.ok) { const data = await res.json(); setError(data.error || (isEditing ? 'Failed to save revision' : 'Failed to add scope')); return }
     const data = await res.json()
     onSaved(data)
     handleClose()
@@ -63,6 +87,8 @@ export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Prop
   if (!open || !deal) return null
   const part = deal.project_parts
   const revisions = sortedDealRevisions(deal)
+  const title = isEditing ? `Edit V${editingRevision.revision_number}` : 'Add Scope'
+  const submitLabel = isEditing ? `Save V${editingRevision.revision_number}` : 'Add Scope'
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -70,7 +96,7 @@ export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Prop
       <div className="relative bg-white rounded-t-3xl px-5 pt-5 pb-8 safe-bottom max-h-[92vh] overflow-y-auto no-scrollbar">
         <div className="flex items-center justify-between mb-5">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-900">Add Scope</h2>
+            <h2 className="text-base font-semibold text-slate-900">{title}</h2>
             <p className="text-xs text-slate-400 truncate">{deal.name}</p>
           </div>
           <button onClick={handleClose}><X size={20} className="text-slate-400" /></button>
@@ -99,9 +125,17 @@ export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Prop
             <div className="mt-3 space-y-1.5">
               <p className="text-xs font-semibold text-slate-500">Existing scope</p>
               {revisions.length > 0 ? revisions.map(revision => (
-                <div key={revision.id} className="flex items-start justify-between gap-3 text-xs">
+                <div
+                  key={revision.id}
+                  className={cn(
+                    'flex items-start justify-between gap-3 text-xs rounded-lg px-2 py-1 -mx-2',
+                    editingRevision?.id === revision.id && 'bg-blue-50'
+                  )}
+                >
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-600 truncate">V{revision.revision_number} · {revision.scope_description}</p>
+                    <p className={cn('font-medium truncate', editingRevision?.id === revision.id ? 'text-blue-700' : 'text-slate-600')}>
+                      V{revision.revision_number} · {revision.scope_description}
+                    </p>
                     <p className="text-slate-400">{formatDate(revision.date)}{revision.notes ? ` · ${revision.notes}` : ''}</p>
                   </div>
                   <span className={cn('font-bold flex-shrink-0', revision.amount_delta < 0 ? 'text-red-500' : 'text-blue-600')}>
@@ -187,7 +221,7 @@ export default function DealRevisionSheet({ open, deal, onClose, onSaved }: Prop
             disabled={loading}
             className="w-full py-3.5 bg-blue-700 text-white font-semibold rounded-xl text-base disabled:opacity-50"
           >
-            {loading ? 'Saving...' : 'Add Scope'}
+            {loading ? 'Saving...' : submitLabel}
           </button>
         </div>
       </div>

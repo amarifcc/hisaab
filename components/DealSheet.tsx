@@ -70,7 +70,7 @@ export default function DealSheet({ open, onClose, onSaved, parts, editing, exis
     setLoading(true)
     const method = editing ? 'PUT' : 'POST'
     const body = editing
-      ? { id: editing.id, name, person_name: personName, part_id: partId, date, notes }
+      ? { id: editing.id, name, person_name: personName, part_id: partId }
       : { name, person_name: personName, part_id: partId, agreed_amount: amount, date, notes }
 
     const res = await fetch('/api/deals', { method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
@@ -206,28 +206,32 @@ export default function DealSheet({ open, onClose, onSaved, parts, editing, exis
             </div>
           )}
 
-          {/* 5. Notes */}
-          <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Notes (optional)</label>
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Any notes…"
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          {!editing && (
+            <>
+              {/* 5. Notes */}
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Any notes…"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
-          {/* 6. Date */}
-          <div>
-            <label className="text-xs font-medium text-slate-500 mb-1 block">Deal Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+              {/* 6. Date */}
+              <div>
+                <label className="text-xs font-medium text-slate-500 mb-1 block">Deal Date</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </>
+          )}
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
