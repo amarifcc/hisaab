@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import Script from 'next/script'
 import PwaRegister from '@/components/PwaRegister'
 import './globals.css'
 
@@ -25,19 +26,15 @@ export const viewport: Viewport = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const themeScript = `
-    try {
-      var theme = localStorage.getItem('hisaab_theme');
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      }
-    } catch (_) {}
-  `
-
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <Script id="theme-init" strategy="beforeInteractive">{`
+          try {
+            var theme = localStorage.getItem('hisaab_theme');
+            if (theme === 'dark') document.documentElement.classList.add('dark');
+          } catch (_) {}
+        `}</Script>
       </head>
       <body className="min-h-screen bg-slate-50">
         <PwaRegister />
