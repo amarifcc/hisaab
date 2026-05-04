@@ -299,8 +299,6 @@ export default function SettingsView({ profile, parts: initialParts, categories:
         </div>
       </section>
 
-      {/* Logs link */}
-      <a href="/logs" className="block text-center text-xs text-slate-400 underline py-2">View Activity Logs</a>
     </div>
   )
 }

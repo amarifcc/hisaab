@@ -182,6 +182,27 @@ export interface Database {
         }
         Update: never
       }
+      page_visits: {
+        Row: {
+          id: string
+          user_id: string
+          path: string
+          query: string | null
+          referrer: string | null
+          user_agent: string | null
+          visited_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          path: string
+          query?: string | null
+          referrer?: string | null
+          user_agent?: string | null
+          visited_at?: string
+        }
+        Update: never
+      }
       deal_revisions: {
         Row: {
           id: string
@@ -226,6 +247,7 @@ export type Transfer = Database['public']['Tables']['transfers']['Row']
 export type Expense = Database['public']['Tables']['expenses']['Row']
 export type ExpenseAllocation = Database['public']['Tables']['expense_allocations']['Row']
 export type ActivityLog = Database['public']['Tables']['activity_logs']['Row']
+export type PageVisit = Database['public']['Tables']['page_visits']['Row']
 export type DealRevision = Database['public']['Tables']['deal_revisions']['Row']
 
 export interface Deal {

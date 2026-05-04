@@ -5,20 +5,21 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Layers, Tag, Users, ChevronRight } from 'lucide-react'
 
+type RoleProfile = { role?: string | null }
+
 export default async function SettingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  const isSupervisor = (profile as any)?.role === 'supervisor'
+  const isSupervisor = (profile as RoleProfile | null)?.role === 'supervisor'
 
   if (!isSupervisor) {
     return (
       <div className="px-4 pt-5">
         <h1 className="text-xl font-bold text-slate-900 mb-2">Settings</h1>
         <p className="text-sm text-slate-400">Only the supervisor can manage settings.</p>
-        <a href="/logs" className="block text-center text-xs text-slate-400 underline mt-6">View Activity Log</a>
       </div>
     )
   }
@@ -77,7 +78,6 @@ export default async function SettingsPage() {
         </Link>
       </div>
 
-      <a href="/logs" className="block text-center text-xs text-slate-400 underline mt-8">View Activity Log</a>
     </div>
   )
 }
