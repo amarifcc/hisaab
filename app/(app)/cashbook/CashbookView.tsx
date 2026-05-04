@@ -109,6 +109,7 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const [daysShown, setDaysShown] = useState(INITIAL_DAYS)
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
   const [todayPKT] = useState(() => getPKTToday())
   const [currentTime] = useState(() => getPKTTime())
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -128,6 +129,16 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
     localStorage.setItem(PART_FILTER_KEY, val)
     setDropdownOpen(false)
     setDaysShown(INITIAL_DAYS)
+    setExpandedDates(new Set())
+  }
+
+  function toggleExpanded(date: string) {
+    setExpandedDates(prev => {
+      const next = new Set(prev)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
+      return next
+    })
   }
 
   const dayDataMap = useMemo(
@@ -144,6 +155,24 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
   const hasMore = daysShown < allDates.length
   const selectedPart = parts.find(p => p.id === filterPart)
   const yesterdayPKT = getYesterday(todayPKT)
+
+  function getDayTransfers(date: string): TransferWithPart[] {
+    return transfers.filter(t =>
+      t.date === date && (filterPart === 'all' || t.part_id === filterPart)
+    )
+  }
+
+  function getDayExpenses(date: string): { expense: ExpenseWithAllocations; amount: number }[] {
+    return expenses
+      .filter(e => e.date === date)
+      .flatMap(e => {
+        if (filterPart === 'all') {
+          return Number(e.total_amount) > 0 ? [{ expense: e, amount: Number(e.total_amount) }] : []
+        }
+        const alloc = e.expense_allocations.find(a => a.part_id === filterPart)
+        return alloc && Number(alloc.amount) > 0 ? [{ expense: e, amount: Number(alloc.amount) }] : []
+      })
+  }
 
   return (
     <div className="px-4 pt-5 pb-8">
@@ -162,7 +191,7 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
             </button>
             {tooltipOpen && (
               <div className="absolute top-full left-0 mt-1.5 bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 shadow-lg z-30 w-64 leading-relaxed">
-                Shows daily opening balance, cash received, cash spent, and closing balance.
+                Shows daily opening balance, cash received, cash spent, and closing balance. Tap a card to see individual transactions.
                 {filterPart !== 'all' && (
                   <span className="block mt-1 text-slate-400">
                     Filtered view shows net position for this part only. Switch to &quot;All Parts&quot; for full cash position.
@@ -220,6 +249,8 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
           const isYesterday = date === yesterdayPKT
           const label = formatDayHeading(date)
           const net = data.cashIn - data.cashOut
+          const isExpanded = expandedDates.has(date)
+          const hasActivity = data.cashIn > 0 || data.cashOut > 0
 
           return (
             <div key={date} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -274,8 +305,11 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
                 </span>
               </div>
 
-              {/* Closing balance */}
-              <div className="px-4 py-3 flex items-center justify-between">
+              {/* Closing balance — also acts as expand toggle */}
+              <button
+                className="w-full px-4 py-3 flex items-center justify-between active:bg-slate-50 transition-colors"
+                onClick={() => hasActivity && toggleExpanded(date)}
+              >
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-slate-500">
                     {isToday ? 'Current Balance' : 'Closing Balance'}
@@ -289,13 +323,81 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
                     </span>
                   )}
                 </div>
-                <span className={cn(
-                  'text-base font-bold',
-                  data.closing < 0 ? 'text-red-500' : 'text-emerald-600'
-                )}>
-                  {data.closing < 0 ? '−' : ''}PKR {formatPKR(Math.abs(data.closing))}
-                </span>
-              </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn('text-base font-bold', data.closing < 0 ? 'text-red-500' : 'text-emerald-600')}>
+                    {data.closing < 0 ? '−' : ''}PKR {formatPKR(Math.abs(data.closing))}
+                  </span>
+                  {hasActivity && (
+                    <ChevronDown
+                      size={14}
+                      className={cn('text-slate-300 flex-shrink-0 transition-transform', isExpanded && 'rotate-180')}
+                    />
+                  )}
+                </div>
+              </button>
+
+              {/* Expanded detail rows */}
+              {isExpanded && (
+                <div className="border-t border-slate-100">
+                  {/* Transfers (Cash In) */}
+                  {getDayTransfers(date).map(t => (
+                    <div key={t.id} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-700 truncate">
+                            {t.from_person || 'Transfer received'}
+                          </p>
+                          {filterPart === 'all' && t.project_parts && (
+                            <span
+                              className="text-[10px] font-medium px-1 py-0.5 rounded text-white"
+                              style={{ backgroundColor: t.project_parts.color }}
+                            >
+                              {t.project_parts.short_name}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-emerald-600 flex-shrink-0 ml-3">
+                        + PKR {formatPKR(Number(t.amount))}
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Expenses (Cash Out) */}
+                  {getDayExpenses(date).map(({ expense: e, amount }) => (
+                    <div key={e.id} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-slate-700 truncate">
+                            {e.description || e.paid_to || 'Expense'}
+                          </p>
+                          {e.paid_to && e.description && (
+                            <p className="text-[10px] text-slate-400 truncate">{e.paid_to}</p>
+                          )}
+                          {filterPart === 'all' && e.expense_allocations.length > 1 && (
+                            <div className="flex gap-1 mt-0.5 flex-wrap">
+                              {e.expense_allocations.map(a => (
+                                <span
+                                  key={a.part_id}
+                                  className="text-[10px] font-medium px-1 py-0.5 rounded text-white"
+                                  style={{ backgroundColor: a.project_parts?.color }}
+                                >
+                                  {a.project_parts?.short_name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-xs font-semibold text-rose-500 flex-shrink-0 ml-3">
+                        − PKR {formatPKR(amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })}
