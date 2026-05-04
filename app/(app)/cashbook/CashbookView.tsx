@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useSyncExternalStore } from 'react'
 import { ArrowDownToLine, ArrowUpFromLine, ChevronDown, Info } from 'lucide-react'
 import { cn, formatPKR } from '@/lib/utils'
 import type { ProjectPart, Transfer, Expense, ExpenseAllocation } from '@/lib/types'
@@ -17,8 +17,25 @@ interface Props {
 }
 
 const PART_FILTER_KEY = 'hisab_cashbook_filter_part'
+const PART_FILTER_CHANGE_EVENT = 'hisab_cashbook_filter_part_change'
 const INITIAL_DAYS = 5
 const LOAD_MORE_COUNT = 5
+
+function getStoredPartFilter() {
+  if (typeof window === 'undefined') return 'all'
+  return localStorage.getItem(PART_FILTER_KEY) || 'all'
+}
+
+function subscribePartFilter(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+
+  window.addEventListener('storage', onStoreChange)
+  window.addEventListener(PART_FILTER_CHANGE_EVENT, onStoreChange)
+  return () => {
+    window.removeEventListener('storage', onStoreChange)
+    window.removeEventListener(PART_FILTER_CHANGE_EVENT, onStoreChange)
+  }
+}
 
 function getPKTToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date())
@@ -103,9 +120,7 @@ function computeAllDayData(
 }
 
 export default function CashbookView({ parts, transfers, expenses }: Props) {
-  const [filterPart, setFilterPart] = useState<string>(() =>
-    typeof window === 'undefined' ? 'all' : (localStorage.getItem(PART_FILTER_KEY) || 'all')
-  )
+  const filterPart = useSyncExternalStore(subscribePartFilter, getStoredPartFilter, () => 'all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const [daysShown, setDaysShown] = useState(INITIAL_DAYS)
@@ -125,8 +140,8 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
   }, [])
 
   function changePartFilter(val: string) {
-    setFilterPart(val)
     localStorage.setItem(PART_FILTER_KEY, val)
+    window.dispatchEvent(new Event(PART_FILTER_CHANGE_EVENT))
     setDropdownOpen(false)
     setDaysShown(INITIAL_DAYS)
     setExpandedDates(new Set())
@@ -248,7 +263,6 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
           const isToday = date === todayPKT
           const isYesterday = date === yesterdayPKT
           const label = formatDayHeading(date)
-          const net = data.cashIn - data.cashOut
           const isExpanded = expandedDates.has(date)
           const hasActivity = data.cashIn > 0 || data.cashOut > 0
 
@@ -425,7 +439,9 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
           <p className="text-center text-xs text-slate-300 pt-1">All history shown</p>
         )}
 
-        <p className="text-center text-xs text-slate-300 pt-1">Hisaab · {new Date().toLocaleDateString('en-PK')}</p>
+        <p className="text-center text-xs text-slate-300 pt-1" suppressHydrationWarning>
+          Hisaab · {new Date().toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' })}
+        </p>
       </div>
     </div>
   )

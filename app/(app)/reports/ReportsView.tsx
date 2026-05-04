@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
+import { confirmTypedDelete } from '@/lib/confirm-delete'
 import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, Users, Tag, Layers, Handshake, ChevronDown, ChevronUp, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound, List, Clock, Search, X, Trash2 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
@@ -30,6 +31,23 @@ interface Props {
 }
 
 const PART_FILTER_KEY = 'hisab_reports_filter_part'
+const PART_FILTER_CHANGE_EVENT = 'hisab_reports_filter_part_change'
+
+function getStoredPartFilter() {
+  if (typeof window === 'undefined') return 'all'
+  return localStorage.getItem(PART_FILTER_KEY) || 'all'
+}
+
+function subscribePartFilter(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+
+  window.addEventListener('storage', onStoreChange)
+  window.addEventListener(PART_FILTER_CHANGE_EVENT, onStoreChange)
+  return () => {
+    window.removeEventListener('storage', onStoreChange)
+    window.removeEventListener(PART_FILTER_CHANGE_EVENT, onStoreChange)
+  }
+}
 
 export default function ReportsView({ parts, transfers, expenses, categories, deals, paidMap, isSupervisor }: Props) {
   const [tab, setTab] = useState<Tab>('parts')
@@ -37,9 +55,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const [reportExpenses, setReportExpenses] = useState(expenses)
   const [reportDeals, setReportDeals] = useState(deals)
   const [reportPaidMap, setReportPaidMap] = useState(paidMap)
-  const [filterPart, setFilterPart] = useState<string>(() =>
-    typeof window === 'undefined' ? 'all' : localStorage.getItem(PART_FILTER_KEY) || 'all'
-  )
+  const filterPart = useSyncExternalStore(subscribePartFilter, getStoredPartFilter, () => 'all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [addHintOpen, setAddHintOpen] = useState(false)
@@ -66,8 +82,8 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   }, [])
 
   function changePartFilter(val: string) {
-    setFilterPart(val)
     localStorage.setItem(PART_FILTER_KEY, val)
+    window.dispatchEvent(new Event(PART_FILTER_CHANGE_EVENT))
     setDropdownOpen(false)
   }
 
@@ -165,7 +181,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
 
   async function deleteExpense(id: string) {
     if (!isSupervisor) return
-    if (!confirm('Delete this expense? This cannot be undone.')) return
+    if (!confirmTypedDelete('Delete this expense?')) return
     const res = await fetch('/api/expenses', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
     if (res.ok) {
       const next = reportExpenses.filter(e => e.id !== id)
@@ -176,14 +192,14 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
 
   async function deleteTransfer(id: string) {
     if (!isSupervisor) return
-    if (!confirm('Delete this transfer? This cannot be undone.')) return
+    if (!confirmTypedDelete('Delete this transfer?')) return
     const res = await fetch('/api/transfers', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
     if (res.ok) setReportTransfers(prev => prev.filter(t => t.id !== id))
   }
 
   async function deleteDeal(id: string) {
     if (!isSupervisor) return
-    if (!confirm('Delete this deal? This cannot be undone.')) return
+    if (!confirmTypedDelete('Delete this deal?')) return
     const res = await fetch('/api/deals', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
     if (res.ok) setReportDeals(prev => prev.filter(d => d.id !== id))
   }
@@ -330,7 +346,9 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
             {expenseView === 'person' && <PeopleReport expenses={scopedExpenses} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
           </div>
         )}
-        <p className="text-center text-xs text-slate-300 pt-1">Hisaab · {new Date().toLocaleDateString('en-PK')}</p>
+        <p className="text-center text-xs text-slate-300 pt-1" suppressHydrationWarning>
+          Hisaab · {new Date().toLocaleDateString('en-PK', { timeZone: 'Asia/Karachi' })}
+        </p>
       </div>
 
       <ExpenseSheet

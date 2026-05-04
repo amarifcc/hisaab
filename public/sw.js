@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hisaab-v1'
+const CACHE_NAME = 'hisaab-shell-v2'
 const OFFLINE_URL = '/offline.html'
 const PRECACHE_URLS = [
   OFFLINE_URL,
@@ -24,6 +24,17 @@ self.addEventListener('activate', event => {
   )
 })
 
+self.addEventListener('message', event => {
+  if (event.data?.type !== 'CLEAR_CACHES') return
+
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.map(key => caches.delete(key))))
+      .then(() => caches.open(CACHE_NAME))
+      .then(cache => cache.addAll(PRECACHE_URLS))
+  )
+})
+
 self.addEventListener('fetch', event => {
   const request = event.request
   const url = new URL(request.url)
@@ -33,18 +44,13 @@ self.addEventListener('fetch', event => {
   }
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)))
+    event.respondWith(
+      fetch(request, { cache: 'no-store' }).catch(() => caches.match(OFFLINE_URL))
+    )
     return
   }
 
-  event.respondWith(
-    caches.match(request).then(cached => {
-      if (cached) return cached
-      return fetch(request).then(response => {
-        const copy = response.clone()
-        caches.open(CACHE_NAME).then(cache => cache.put(request, copy))
-        return response
-      })
-    })
-  )
+  if (PRECACHE_URLS.includes(url.pathname)) {
+    event.respondWith(caches.match(request).then(cached => cached || fetch(request)))
+  }
 })

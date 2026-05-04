@@ -28,15 +28,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
+      <body className="min-h-screen bg-slate-50">
         <Script id="theme-init" strategy="beforeInteractive">{`
           try {
             var theme = localStorage.getItem('hisaab_theme');
             if (theme === 'dark') document.documentElement.classList.add('dark');
           } catch (_) {}
         `}</Script>
-      </head>
-      <body className="min-h-screen bg-slate-50">
         <PwaRegister />
         {children}
       </body>

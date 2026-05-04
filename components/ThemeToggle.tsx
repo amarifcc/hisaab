@@ -1,30 +1,43 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const THEME_KEY = 'hisaab_theme'
+const THEME_CHANGE_EVENT = 'hisaab_theme_change'
 
 function applyTheme(theme: 'light' | 'dark') {
   document.documentElement.classList.toggle('dark', theme === 'dark')
 }
 
+function getStoredTheme(): 'light' | 'dark' {
+  if (typeof window === 'undefined') return 'light'
+  return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'
+}
+
+function subscribeTheme(onStoreChange: () => void) {
+  if (typeof window === 'undefined') return () => {}
+
+  window.addEventListener('storage', onStoreChange)
+  window.addEventListener(THEME_CHANGE_EVENT, onStoreChange)
+  return () => {
+    window.removeEventListener('storage', onStoreChange)
+    window.removeEventListener(THEME_CHANGE_EVENT, onStoreChange)
+  }
+}
+
 export default function ThemeToggle({ compact = false }: { compact?: boolean }) {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light')
+  const theme = useSyncExternalStore<'light' | 'dark'>(subscribeTheme, getStoredTheme, () => 'light')
 
   useEffect(() => {
-    const saved = localStorage.getItem(THEME_KEY)
-    const nextTheme = saved === 'dark' ? 'dark' : 'light'
-    setTheme(nextTheme)
-    applyTheme(nextTheme)
-  }, [])
+    applyTheme(theme)
+  }, [theme])
 
   function toggleTheme() {
     const nextTheme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(nextTheme)
     localStorage.setItem(THEME_KEY, nextTheme)
-    applyTheme(nextTheme)
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT))
   }
 
   const Icon = theme === 'dark' ? Sun : Moon

@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
+import CacheRefreshButton from '@/components/CacheRefreshButton'
 
 const mainNav = [
   { href: '/home',      icon: House,       label: 'Home'     },
@@ -50,7 +51,8 @@ export default function Sidebar({ userName, userRole }: Props) {
           <Menu size={22} />
         </button>
         <span className="ml-3 text-base font-bold text-slate-900">Hisaab</span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <CacheRefreshButton compact />
           <ThemeToggle compact />
         </div>
       </header>
