@@ -294,7 +294,7 @@ function SummaryCard({ label, value, sub, color }: { label: string; value: strin
   return (
     <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm">
       <p className="text-xs text-slate-400 font-medium">{label}</p>
-      <p className="text-lg font-bold mt-0.5" style={{ color: color ?? '#0f172a' }}>{value}</p>
+      <p className="text-lg font-bold mt-0.5 text-slate-900" style={color ? { color } : undefined}>{value}</p>
       {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
     </div>
   )

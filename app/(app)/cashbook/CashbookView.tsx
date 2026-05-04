@@ -307,21 +307,42 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
 
               {/* Closing balance — also acts as expand toggle */}
               <button
-                className="w-full px-4 py-3 flex items-center justify-between active:bg-slate-50 transition-colors"
+                className={cn(
+                  'w-full px-4 py-3 flex items-center justify-between transition-colors',
+                  hasActivity && (isExpanded ? 'bg-blue-50' : 'bg-slate-100 active:bg-blue-50')
+                )}
                 onClick={() => hasActivity && toggleExpanded(date)}
               >
-                <span className="text-xs font-medium text-slate-500">
-                  {isToday ? 'Current Balance' : 'Closing Balance'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-slate-500">
+                    {isToday ? 'Current Balance' : 'Closing Balance'}
+                  </span>
+                  {hasActivity && (
+                    <span className={cn(
+                      'text-[10px] font-semibold transition-colors',
+                      isExpanded ? 'text-blue-500' : 'text-slate-400'
+                    )}>
+                      {isExpanded ? 'hide' : 'details'}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   <span className={cn('text-base font-bold', data.closing < 0 ? 'text-red-500' : 'text-emerald-600')}>
                     {data.closing < 0 ? '−' : ''}PKR {formatPKR(Math.abs(data.closing))}
                   </span>
                   {hasActivity && (
-                    <ChevronDown
-                      size={14}
-                      className={cn('text-slate-300 flex-shrink-0 transition-transform', isExpanded && 'rotate-180')}
-                    />
+                    <div className={cn(
+                      'w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors',
+                      isExpanded ? 'bg-blue-50' : 'bg-slate-200'
+                    )}>
+                      <ChevronDown
+                        size={12}
+                        className={cn(
+                          'transition-all duration-200',
+                          isExpanded ? 'rotate-180 text-blue-500' : 'text-slate-500'
+                        )}
+                      />
+                    </div>
                   )}
                 </div>
               </button>
