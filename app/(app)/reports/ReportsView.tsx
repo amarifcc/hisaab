@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
-import { Plus, ReceiptText, ArrowDownToLine, Users, Tag, Layers, Handshake, ChevronDown, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, Users, Tag, Layers, Handshake, ChevronDown, ChevronUp, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound, List, Clock, Search, X, Trash2 } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
@@ -16,7 +16,8 @@ type ExpenseWithDetails = Expense & {
   categories: Category | null
   expense_allocations: (ExpenseAllocation & { project_parts: ProjectPart })[]
 }
-type Tab = 'parts' | 'deals' | 'categories' | 'people'
+type Tab = 'parts' | 'deals' | 'categories' | 'transfers'
+type ExpenseView = 'category' | 'person' | 'list'
 
 interface Props {
   parts: ProjectPart[]
@@ -47,6 +48,8 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const [editingRevision, setEditingRevision] = useState<DealRevision | null>(null)
   const [editingDeal, setEditingDeal] = useState<DealWithPart | null>(null)
   const [editingExpense, setEditingExpense] = useState<ExpenseWithDetails | null>(null)
+  const [editingTransfer, setEditingTransfer] = useState<TransferWithPart | null>(null)
+  const [expenseView, setExpenseView] = useState<ExpenseView>('list')
   const dropdownRef = useRef<HTMLDivElement>(null)
   const addRef = useRef<HTMLDivElement>(null)
 
@@ -86,13 +89,16 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   const selectedPart = parts.find(p => p.id === filterPart)
 
   function openSheet(nextSheet: 'expense' | 'transfer' | 'deal') {
+    if (!isSupervisor) return
     if (nextSheet === 'deal') setEditingDeal(null)
     if (nextSheet === 'expense') setEditingExpense(null)
+    if (nextSheet === 'transfer') setEditingTransfer(null)
     setSheet(nextSheet)
     setAddOpen(false)
   }
 
   function saveDeal(data: DealWithPart) {
+    if (!isSupervisor) return
     if (editingDeal) {
       setReportDeals(prev => prev.map(deal => deal.id === data.id ? data : deal))
     } else {
@@ -101,11 +107,13 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   }
 
   function openAddScope(deal: DealWithPart) {
+    if (!isSupervisor) return
     setEditingRevision(null)
     setRevisionDeal(deal)
   }
 
   function openEditRevision(deal: DealWithPart, revision: DealRevision) {
+    if (!isSupervisor) return
     setEditingRevision(revision)
     setRevisionDeal(deal)
   }
@@ -123,6 +131,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   }
 
   function saveExpense(data: ExpenseWithDetails) {
+    if (!isSupervisor) return
     if (editingExpense) {
       setReportExpenses(prev => {
         const next = prev.map(expense => expense.id === data.id ? data : expense)
@@ -137,15 +146,53 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
   }
 
   function openEditExpense(expense: ExpenseWithDetails) {
+    if (!isSupervisor) return
     setEditingExpense(expense)
     setSheet('expense')
   }
 
+  function openEditTransfer(transfer: TransferWithPart) {
+    if (!isSupervisor) return
+    setEditingTransfer(transfer)
+    setSheet('transfer')
+  }
+
+  function openEditDeal(deal: DealWithPart) {
+    if (!isSupervisor) return
+    setEditingDeal(deal)
+    setSheet('deal')
+  }
+
+  async function deleteExpense(id: string) {
+    if (!isSupervisor) return
+    if (!confirm('Delete this expense? This cannot be undone.')) return
+    const res = await fetch('/api/expenses', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
+    if (res.ok) {
+      const next = reportExpenses.filter(e => e.id !== id)
+      setReportExpenses(next)
+      rebuildPaidMap(next)
+    }
+  }
+
+  async function deleteTransfer(id: string) {
+    if (!isSupervisor) return
+    if (!confirm('Delete this transfer? This cannot be undone.')) return
+    const res = await fetch('/api/transfers', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
+    if (res.ok) setReportTransfers(prev => prev.filter(t => t.id !== id))
+  }
+
+  async function deleteDeal(id: string) {
+    if (!isSupervisor) return
+    if (!confirm('Delete this deal? This cannot be undone.')) return
+    const res = await fetch('/api/deals', { method: 'DELETE', body: JSON.stringify({ id }), headers: { 'Content-Type': 'application/json' } })
+    if (res.ok) setReportDeals(prev => prev.filter(d => d.id !== id))
+  }
+
   const TABS = [
-    { id: 'parts' as Tab,      icon: Layers,    label: 'Overview'   },
-    { id: 'categories' as Tab, icon: Tag,        label: 'Expenses'   },
-    { id: 'people' as Tab,     icon: Users,      label: 'People'     },
-    { id: 'deals' as Tab,      icon: Handshake, label: 'Deals'      },
+    { id: 'parts' as Tab,      icon: Layers,           label: 'Overview'   },
+    { id: 'categories' as Tab, icon: Tag,               label: 'Expenses'   },
+    { id: 'transfers' as Tab,  icon: ArrowDownToLine,   label: 'Transfers'  },
+    { id: 'deals' as Tab,      icon: Handshake,         label: 'Deals'      },
   ]
 
   return (
@@ -153,7 +200,7 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-slate-900">Reports</h1>
+        <h1 className="text-xl font-bold text-slate-900">Home</h1>
         <div className="flex items-center gap-2">
           <div className="relative" ref={dropdownRef}>
             <button
@@ -246,12 +293,43 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
       <div className="space-y-2.5">
         {tab === 'parts' &&
           <PartsReport transfers={scopedTransfers} expenses={scopedExpenses} deals={scopedDeals} parts={parts} selectedPart={selectedPart} />}
+        {tab === 'transfers' &&
+          <TransfersListReport transfers={scopedTransfers} isSupervisor={isSupervisor} onEdit={openEditTransfer} onDelete={deleteTransfer} />}
         {tab === 'deals' &&
-          <DealsReport deals={scopedDeals} expenses={reportExpenses} paidMap={reportPaidMap} selectedPart={selectedPart} isSupervisor={isSupervisor} onAddScope={openAddScope} onEditDeal={(deal) => { setEditingDeal(deal); setSheet('deal') }} onEditRevision={openEditRevision} />}
-        {tab === 'categories' &&
-          <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
-        {tab === 'people' &&
-          <PeopleReport expenses={scopedExpenses} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
+          <DealsReport deals={scopedDeals} expenses={reportExpenses} paidMap={reportPaidMap} selectedPart={selectedPart} isSupervisor={isSupervisor} onAddScope={openAddScope} onEditDeal={openEditDeal} onEditRevision={openEditRevision} onDeleteDeal={deleteDeal} />}
+        {tab === 'categories' && (
+          <div className="space-y-2.5">
+            <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
+              <button
+                onClick={() => setExpenseView('list')}
+                className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
+                  expenseView === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}
+              >
+                <List size={12} />
+                List
+              </button>
+              <button
+                onClick={() => setExpenseView('category')}
+                className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
+                  expenseView === 'category' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}
+              >
+                <Tag size={12} />
+                Category
+              </button>
+              <button
+                onClick={() => setExpenseView('person')}
+                className={cn('flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors',
+                  expenseView === 'person' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500')}
+              >
+                <Users size={12} />
+                Person
+              </button>
+            </div>
+            {expenseView === 'list' && <ExpensesListReport expenses={scopedExpenses} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} onDeleteExpense={deleteExpense} />}
+            {expenseView === 'category' && <CategoriesReport expenses={scopedExpenses} categories={categories} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
+            {expenseView === 'person' && <PeopleReport expenses={scopedExpenses} getAmount={getAmount} selectedPart={selectedPart} isSupervisor={isSupervisor} onEditExpense={openEditExpense} />}
+          </div>
+        )}
         <p className="text-center text-xs text-slate-300 pt-1">Hisaab · {new Date().toLocaleDateString('en-PK')}</p>
       </div>
 
@@ -265,8 +343,17 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
       />
       <TransferSheet
         open={sheet === 'transfer'}
-        onClose={() => setSheet(null)}
-        onSaved={(data) => setReportTransfers(prev => [data, ...prev])}
+        onClose={() => { setSheet(null); setEditingTransfer(null) }}
+        onSaved={(data) => {
+          if (!isSupervisor) return
+          if (editingTransfer) {
+            setReportTransfers(prev => prev.map(t => t.id === data.id ? { ...t, ...data } : t))
+          } else {
+            setReportTransfers(prev => [data as TransferWithPart, ...prev])
+          }
+          setEditingTransfer(null)
+        }}
+        editing={editingTransfer}
       />
       <DealSheet
         open={sheet === 'deal'}
@@ -282,7 +369,10 @@ export default function ReportsView({ parts, transfers, expenses, categories, de
         deal={revisionDeal}
         editingRevision={editingRevision}
         onClose={() => { setRevisionDeal(null); setEditingRevision(null) }}
-        onSaved={(data) => setReportDeals(prev => prev.map(deal => deal.id === data.id ? data : deal))}
+        onSaved={(data) => {
+          if (!isSupervisor) return
+          setReportDeals(prev => prev.map(deal => deal.id === data.id ? data : deal))
+        }}
       />
     </div>
   )
@@ -297,6 +387,26 @@ function SummaryCard({ label, value, sub, color }: { label: string; value: strin
       <p className="text-lg font-bold mt-0.5 text-slate-900" style={color ? { color } : undefined}>{value}</p>
       {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
     </div>
+  )
+}
+
+function DateSortButton({ sortByLog, onToggle }: { sortByLog: boolean; onToggle: () => void }) {
+  const Icon = sortByLog ? Clock : CalendarDays
+  const current = sortByLog ? 'log entry date' : 'transaction date'
+  const next = sortByLog ? 'transaction date' : 'log entry date'
+
+  return (
+    <button
+      onClick={onToggle}
+      title={`Sorted by ${current}. Tap to sort by ${next}.`}
+      aria-label={`Sorted by ${current}. Tap to sort by ${next}.`}
+      className={cn(
+        'p-2 rounded-xl border transition-colors flex-shrink-0',
+        sortByLog ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-white border-slate-200 text-slate-500'
+      )}
+    >
+      <Icon size={14} />
+    </button>
   )
 }
 
@@ -518,6 +628,289 @@ function MultiSelectFilter({ noun, options, selected, onToggle, onClear }: {
               {selected.has(o.id) && <Check size={14} className="text-blue-600 flex-shrink-0" />}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Transfers List Report ─────────────────────────────────────────────────────
+
+function TransfersListReport({ transfers, isSupervisor, onEdit, onDelete }: {
+  transfers: TransferWithPart[]
+  isSupervisor: boolean
+  onEdit: (transfer: TransferWithPart) => void
+  onDelete: (id: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [sortByLog, setSortByLog] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const q = search.trim().toLowerCase()
+
+  const rows = [...transfers]
+    .filter(t => {
+      if (!q) return true
+      return (
+        (t.from_person ?? '').toLowerCase().includes(q) ||
+        (t.notes ?? '').toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => {
+      const av = sortByLog ? (a.created_at ?? a.date) : a.date
+      const bv = sortByLog ? (b.created_at ?? b.date) : b.date
+      return bv.localeCompare(av)
+    })
+
+  const total = rows.reduce((s, t) => s + Number(t.amount), 0)
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by sender or notes…"
+            className="w-full pl-8 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <DateSortButton sortByLog={sortByLog} onToggle={() => setSortByLog(s => !s)} />
+      </div>
+
+      <SummaryCard
+        label={search ? `Matching "${search}"` : 'Total Received'}
+        value={`PKR ${formatPKR(total)}`}
+        sub={`${rows.length} ${rows.length === 1 ? 'transfer' : 'transfers'} · by ${sortByLog ? 'log entry date' : 'transaction date'}`}
+        color="#059669"
+      />
+
+      {rows.length === 0 && (
+        <p className="text-center text-slate-400 text-sm py-8">{search ? 'No results' : 'No transfers recorded'}</p>
+      )}
+
+      {rows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          {rows.map((t, i) => {
+            const isExpanded = expandedId === t.id
+            return (
+              <div key={t.id} className={cn(i > 0 && 'border-t border-slate-100')}>
+                <button
+                  onClick={() => setExpandedId(prev => prev === t.id ? null : t.id)}
+                  className="w-full px-4 py-3 flex items-center justify-between text-left"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                      <ArrowDownLeft size={17} className="text-emerald-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                        {t.project_parts && (
+                          <span className="text-xs px-1.5 py-0.5 rounded text-white flex-shrink-0" style={{ backgroundColor: t.project_parts.color }}>
+                            {t.project_parts.short_name}
+                          </span>
+                        )}
+                        <p className="text-sm font-medium text-slate-800 truncate">{t.from_person || 'Transfer received'}</p>
+                      </div>
+                      <div className="flex items-center gap-x-3 text-xs text-slate-400">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarDays size={11} className="text-slate-300" />
+                          {formatDate(t.date)}
+                        </span>
+                      </div>
+                      {t.notes && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{t.notes}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                    <span className="text-sm font-bold text-emerald-600">+PKR {formatPKR(Number(t.amount))}</span>
+                    {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-3 pt-2 border-t border-slate-100 bg-slate-50">
+                    <div className="space-y-1 text-xs text-slate-500 mb-3">
+                      {t.project_parts && <p><span className="text-slate-400">Part:</span> {t.project_parts.name}</p>}
+                      {t.from_person && <p><span className="text-slate-400">From:</span> {t.from_person}</p>}
+                      <p><span className="text-slate-400">Amount:</span> PKR {formatPKR(Number(t.amount))}</p>
+                      <p><span className="text-slate-400">Date:</span> {formatDate(t.date)}</p>
+                      {t.notes && <p><span className="text-slate-400">Notes:</span> {t.notes}</p>}
+                    </div>
+                    {isSupervisor && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onEdit(t)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"
+                        >
+                          <Pencil size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => onDelete(t.id)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 px-3 py-1.5 rounded-lg"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Expenses List Report ──────────────────────────────────────────────────────
+
+function ExpensesListReport({ expenses, selectedPart, isSupervisor, onEditExpense, onDeleteExpense }: {
+  expenses: ExpenseWithDetails[]
+  selectedPart?: ProjectPart
+  isSupervisor: boolean
+  onEditExpense: (expense: ExpenseWithDetails) => void
+  onDeleteExpense: (id: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [sortByLog, setSortByLog] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const q = search.trim().toLowerCase()
+
+  const rows = getExpenseDisplayRows(expenses, selectedPart)
+    .filter(row => {
+      if (!q) return true
+      const e = row.expense
+      return (
+        (e.description ?? '').toLowerCase().includes(q) ||
+        (e.paid_to ?? '').toLowerCase().includes(q) ||
+        (e.categories?.name ?? '').toLowerCase().includes(q) ||
+        (e.notes ?? '').toLowerCase().includes(q)
+      )
+    })
+    .sort((a, b) => {
+      const av = sortByLog ? a.expense.created_at : a.expense.date
+      const bv = sortByLog ? b.expense.created_at : b.expense.date
+      return bv.localeCompare(av)
+    })
+
+  const totalShown = rows.reduce((s, r) => s + r.amount, 0)
+
+  return (
+    <div className="space-y-2.5">
+      {/* Search + sort row */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search description, person, category…"
+            className="w-full pl-8 pr-8 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        <DateSortButton sortByLog={sortByLog} onToggle={() => setSortByLog(s => !s)} />
+      </div>
+
+      <SummaryCard
+        label={search ? `Matching "${search}"` : 'Total Expenses'}
+        value={`PKR ${formatPKR(totalShown)}`}
+        sub={`${rows.length} ${rows.length === 1 ? 'expense' : 'expenses'} · by ${sortByLog ? 'log entry date' : 'transaction date'}`}
+      />
+
+      {rows.length === 0 && (
+        <p className="text-center text-slate-400 text-sm py-8">{search ? 'No results' : 'No expenses recorded'}</p>
+      )}
+
+      {rows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          {rows.map((row, i) => {
+            const isExpanded = expandedId === row.id
+            const allocs = row.expense.expense_allocations ?? []
+            return (
+              <div key={row.id} className={cn(i > 0 && 'border-t border-slate-100')}>
+                <button
+                  onClick={() => setExpandedId(prev => prev === row.id ? null : row.id)}
+                  className="w-full px-4 py-3 flex items-center justify-between text-left"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                      <ExpenseParts row={row} />
+                      <LinkedExpenseTag row={row} />
+                      <p className="text-sm font-medium text-slate-800 truncate">{row.expense.description || row.expense.categories?.name || 'Expense'}</p>
+                    </div>
+                    <ExpenseMeta expense={row.expense} />
+                    <NotesList notes={row.expense.notes} />
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                    <span className="text-sm font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
+                    {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-3 pt-2 border-t border-slate-100 bg-slate-50">
+                    <div className="space-y-1 text-xs text-slate-500 mb-3">
+                      {row.expense.description && <p><span className="text-slate-400">Description:</span> {row.expense.description}</p>}
+                      {row.expense.categories && <p><span className="text-slate-400">Category:</span> {row.expense.categories.name}</p>}
+                      {row.expense.paid_to && <p><span className="text-slate-400">Paid to:</span> {row.expense.paid_to}</p>}
+                      <p><span className="text-slate-400">Date:</span> {formatDate(row.expense.date)}</p>
+                      {allocs.length > 1 && (
+                        <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 mt-2">
+                          <p className="text-xs font-semibold text-slate-500 mb-1.5">Allocated</p>
+                          <div className="space-y-1">
+                            {allocs.map(a => (
+                              <div key={a.part_id} className="flex items-center justify-between gap-3">
+                                <span className="flex items-center gap-1.5 text-slate-600">
+                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: a.project_parts?.color }} />
+                                  {a.project_parts?.short_name ?? 'Part'}
+                                </span>
+                                <span className="font-semibold text-slate-700">PKR {formatPKR(Number(a.amount))}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-slate-100">
+                              <span className="text-blue-600 font-medium">Total</span>
+                              <span className="text-blue-600 font-bold">PKR {formatPKR(row.expense.total_amount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {isSupervisor && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onEditExpense(row.expense)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg"
+                        >
+                          <Pencil size={12} /> Edit
+                        </button>
+                        <button
+                          onClick={() => onDeleteExpense(row.expense.id)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 px-3 py-1.5 rounded-lg"
+                        >
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
@@ -856,7 +1249,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   parts: ProjectPart[]
   selectedPart?: ProjectPart
 }) {
-  const [recentTab, setRecentTab] = useState<'transactions' | 'deals'>('transactions')
+  const [recentTab, setRecentTab] = useState<'expenses' | 'transfers' | 'deals'>('expenses')
 
   // ── Single part view ──────────────────────────────────────────────────────
   if (selectedPart) {
@@ -877,39 +1270,37 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       if (!top || amount > top.amount) return { expense, amount }
       return top
     }, null)
-    const recentTransactions = [
-      ...transfers.map(item => ({
-        id: `transfer-${item.id}`,
-        type: 'Transfer' as const,
-        label: item.from_person || 'Transfer received',
+    const recentExpenses = expenses.map(item => {
+      const alloc = item.expense_allocations.find(a => a.part_id === selectedPart.id)
+      return {
+        id: `expense-${item.id}`,
+        type: 'Expense' as const,
+        label: item.description || item.categories?.name || 'Expense',
         date: item.date,
-        amount: Number(item.amount),
-        tone: 'text-emerald-600',
-        icon: ArrowDownToLine,
-      })),
-      ...expenses.map(item => {
-        const alloc = item.expense_allocations.find(a => a.part_id === selectedPart.id)
-        return {
-          id: `expense-${item.id}`,
-          type: 'Expense' as const,
-          label: item.description || item.categories?.name || 'Expense',
-          date: item.date,
-          amount: Number(alloc?.amount ?? item.total_amount),
-          tone: 'text-rose-500',
-          icon: TrendingDown,
-        }
-      }),
-    ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+        amount: Number(alloc?.amount ?? item.total_amount),
+        tone: 'text-rose-500',
+        icon: TrendingDown,
+      }
+    }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    const recentTransfers = transfers.map(item => ({
+      id: `transfer-${item.id}`,
+      type: 'Transfer' as const,
+      label: item.from_person || 'Transfer received',
+      date: item.date,
+      amount: Number(item.amount),
+      tone: 'text-emerald-600',
+      icon: ArrowDownToLine,
+    })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
     const recentDeals = deals.map(item => ({
-        id: `deal-${item.id}`,
-        type: 'Deal' as const,
-        label: item.name,
-        date: item.date,
-        amount: dealTotal(item),
-        tone: 'text-blue-600',
-        icon: Handshake,
-      })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
-    const recentItems = recentTab === 'transactions' ? recentTransactions : recentDeals
+      id: `deal-${item.id}`,
+      type: 'Deal' as const,
+      label: item.name,
+      date: item.date,
+      amount: dealTotal(item),
+      tone: 'text-blue-600',
+      icon: Handshake,
+    })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    const recentItems = recentTab === 'expenses' ? recentExpenses : recentTab === 'transfers' ? recentTransfers : recentDeals
     const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
     const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
 
@@ -971,7 +1362,8 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
               <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
               <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
                 {[
-                  { id: 'transactions' as const, label: 'Transactions', count: recentTransactions.length },
+                  { id: 'expenses' as const, label: 'Expenses', count: recentExpenses.length },
+                  { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
                   { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
                 ].map(item => (
                   <button
@@ -1012,13 +1404,14 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
           </>
         )}
 
-        {recentItems.length === 0 && (recentTransactions.length > 0 || recentDeals.length > 0) && (
+        {recentItems.length === 0 && (recentExpenses.length > 0 || recentTransfers.length > 0 || recentDeals.length > 0) && (
           <div className="rounded-2xl bg-white border border-slate-100 shadow-sm px-4 py-5">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
               <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
                 {[
-                  { id: 'transactions' as const, label: 'Transactions', count: recentTransactions.length },
+                  { id: 'expenses' as const, label: 'Expenses', count: recentExpenses.length },
+                  { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
                   { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
                 ].map(item => (
                   <button
@@ -1034,11 +1427,11 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
                 ))}
               </div>
             </div>
-            <p className="text-sm text-slate-400 mt-3">No recent {recentTab === 'transactions' ? 'transactions' : 'deals'} for this part.</p>
+            <p className="text-sm text-slate-400 mt-3">No recent {recentTab} for this part.</p>
           </div>
         )}
 
-        {recentTransactions.length === 0 && recentDeals.length === 0 && spent === 0 && deposited === 0 && (
+        {recentExpenses.length === 0 && recentTransfers.length === 0 && recentDeals.length === 0 && spent === 0 && deposited === 0 && (
           <p className="text-center text-slate-400 text-sm py-8">No transactions for this part</p>
         )}
       </div>
@@ -1061,10 +1454,6 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   const transferCount = transfers.length
   const expenseCount = expenses.length
   const activeParts = summaries.filter(x => x.deposited > 0 || x.spent > 0).length
-  const topSpentPart = summaries.reduce<typeof summaries[number] | null>((top, item) => {
-    if (!top || item.spent > top.spent) return item
-    return top
-  }, null)
   const spentPct = totalDeposited > 0 ? Math.min((totalSpent / totalDeposited) * 100, 100) : 0
 
   return (
@@ -1095,7 +1484,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       <div className="grid grid-cols-3 gap-2">
         <SummaryCard label="Transfers" value={String(transferCount)} sub="received" />
         <SummaryCard label="Expenses" value={String(expenseCount)} sub="paid out" />
-        <SummaryCard label="Top Spend" value={topSpentPart?.spent ? topSpentPart.part.short_name : '-'} sub={topSpentPart?.spent ? `PKR ${formatPKR(topSpentPart.spent)}` : 'none'} color={topSpentPart?.part.color} />
+        <SummaryCard label="Deals" value={String(deals.length)} sub="contracts" />
       </div>
 
       {summaries.map(({ part, deposited, spent, balance }) => (
@@ -1129,7 +1518,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
 
 // ── Deals Report ──────────────────────────────────────────────────────────────
 
-function DealsReport({ deals, expenses, paidMap, selectedPart, isSupervisor, onAddScope, onEditDeal, onEditRevision }: {
+function DealsReport({ deals, expenses, paidMap, selectedPart, isSupervisor, onAddScope, onEditDeal, onEditRevision, onDeleteDeal }: {
   deals: DealWithPart[]
   expenses: ExpenseWithDetails[]
   paidMap: Record<string, Record<string, number>>
@@ -1138,6 +1527,7 @@ function DealsReport({ deals, expenses, paidMap, selectedPart, isSupervisor, onA
   onAddScope: (deal: DealWithPart) => void
   onEditDeal: (deal: DealWithPart) => void
   onEditRevision: (deal: DealWithPart, revision: DealRevision) => void
+  onDeleteDeal: (id: string) => void
 }) {
   const [selectedPeople, setSelectedPeople] = useState<Set<string>>(new Set())
 
@@ -1238,6 +1628,7 @@ function DealsReport({ deals, expenses, paidMap, selectedPart, isSupervisor, onA
             onAddScope={onAddScope}
             onEditDeal={onEditDeal}
             onEditRevision={onEditRevision}
+            onDeleteDeal={onDeleteDeal}
           />
         )
       })}
@@ -1245,7 +1636,7 @@ function DealsReport({ deals, expenses, paidMap, selectedPart, isSupervisor, onA
   )
 }
 
-function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSupervisor, onAddScope, onEditDeal, onEditRevision }: {
+function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSupervisor, onAddScope, onEditDeal, onEditRevision, onDeleteDeal }: {
   name: string
   agreed: number
   paid: number
@@ -1256,6 +1647,7 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
   onAddScope: (deal: DealWithPart) => void
   onEditDeal: (deal: DealWithPart) => void
   onEditRevision: (deal: DealWithPart, revision: DealRevision) => void
+  onDeleteDeal: (id: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [expandedPayments, setExpandedPayments] = useState<Set<string>>(new Set())
@@ -1338,6 +1730,9 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                               </button>
                               <button onClick={() => onEditDeal(d)} className="text-slate-400 active:text-blue-600" title="Edit deal">
                                 <Pencil size={13} />
+                              </button>
+                              <button onClick={() => onDeleteDeal(d.id)} className="text-slate-400 active:text-red-600" title="Delete deal">
+                                <Trash2 size={13} />
                               </button>
                             </>
                           )}

@@ -4,8 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Menu, X, ListOrdered,
-  BarChart2, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, BookOpen
+  Menu, X,
+  House, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, BookOpen
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -13,8 +13,7 @@ import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
 
 const mainNav = [
-  { href: '/reports',   icon: BarChart2,   label: 'Reports'  },
-  { href: '/records',   icon: ListOrdered, label: 'Records'  },
+  { href: '/home',      icon: House,       label: 'Home'     },
   { href: '/cashbook',  icon: BookOpen,    label: 'Cashbook' },
 ]
 

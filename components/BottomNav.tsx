@@ -2,17 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart2, ListOrdered, BookOpen, Settings } from 'lucide-react'
+import { House, BookOpen, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '/reports',  icon: BarChart2,   label: 'Reports'  },
-  { href: '/records',  icon: ListOrdered, label: 'Records'  },
+  { href: '/home',     icon: House,       label: 'Home'     },
   { href: '/cashbook', icon: BookOpen,    label: 'Cashbook' },
   { href: '/settings', icon: Settings,    label: 'Settings' },
 ]
 
-export default function BottomNav({ role }: { role: string }) {
+export default function BottomNav() {
   const pathname = usePathname()
 
   return (

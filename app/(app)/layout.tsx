@@ -27,7 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="max-w-lg mx-auto pb-16">
         {children}
       </main>
-      <BottomNav role={role} />
+      <BottomNav />
     </div>
   )
 }
