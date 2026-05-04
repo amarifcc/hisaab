@@ -310,19 +310,9 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
                 className="w-full px-4 py-3 flex items-center justify-between active:bg-slate-50 transition-colors"
                 onClick={() => hasActivity && toggleExpanded(date)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-slate-500">
-                    {isToday ? 'Current Balance' : 'Closing Balance'}
-                  </span>
-                  {net !== 0 && (
-                    <span className={cn(
-                      'text-[10px] font-semibold px-1.5 py-0.5 rounded-full',
-                      net > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'
-                    )}>
-                      {net > 0 ? `+${formatPKR(net)}` : `−${formatPKR(Math.abs(net))}`}
-                    </span>
-                  )}
-                </div>
+                <span className="text-xs font-medium text-slate-500">
+                  {isToday ? 'Current Balance' : 'Closing Balance'}
+                </span>
                 <div className="flex items-center gap-2">
                   <span className={cn('text-base font-bold', data.closing < 0 ? 'text-red-500' : 'text-emerald-600')}>
                     {data.closing < 0 ? '−' : ''}PKR {formatPKR(Math.abs(data.closing))}
@@ -344,18 +334,18 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
                     <div key={t.id} className="flex items-center justify-between px-4 py-2.5 border-b border-slate-50 last:border-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-slate-700 truncate">
-                            {t.from_person || 'Transfer received'}
-                          </p>
+                        <div className="flex items-center gap-1.5 min-w-0">
                           {filterPart === 'all' && t.project_parts && (
                             <span
-                              className="text-[10px] font-medium px-1 py-0.5 rounded text-white"
+                              className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-white flex-shrink-0"
                               style={{ backgroundColor: t.project_parts.color }}
                             >
                               {t.project_parts.short_name}
                             </span>
                           )}
+                          <p className="text-xs font-medium text-slate-700 truncate">
+                            {t.from_person || 'Transfer received'}
+                          </p>
                         </div>
                       </div>
                       <span className="text-xs font-semibold text-emerald-600 flex-shrink-0 ml-3">
@@ -370,24 +360,22 @@ export default function CashbookView({ parts, transfers, expenses }: Props) {
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-slate-700 truncate">
-                            {e.description || e.paid_to || 'Expense'}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            {filterPart === 'all' && e.expense_allocations.map(a => (
+                              <span
+                                key={a.part_id}
+                                className="text-[10px] font-semibold px-1.5 py-0.5 rounded text-white flex-shrink-0"
+                                style={{ backgroundColor: a.project_parts?.color }}
+                              >
+                                {a.project_parts?.short_name}
+                              </span>
+                            ))}
+                            <p className="text-xs font-medium text-slate-700 truncate">
+                              {e.description || e.paid_to || 'Expense'}
+                            </p>
+                          </div>
                           {e.paid_to && e.description && (
-                            <p className="text-[10px] text-slate-400 truncate">{e.paid_to}</p>
-                          )}
-                          {filterPart === 'all' && e.expense_allocations.length > 1 && (
-                            <div className="flex gap-1 mt-0.5 flex-wrap">
-                              {e.expense_allocations.map(a => (
-                                <span
-                                  key={a.part_id}
-                                  className="text-[10px] font-medium px-1 py-0.5 rounded text-white"
-                                  style={{ backgroundColor: a.project_parts?.color }}
-                                >
-                                  {a.project_parts?.short_name}
-                                </span>
-                              ))}
-                            </div>
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{e.paid_to}</p>
                           )}
                         </div>
                       </div>
