@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import { confirmTypedDelete } from '@/lib/confirm-delete'
-import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, Users, Tag, Layers, Handshake, ChevronDown, ChevronUp, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound, List, Clock, Search, X, Trash2 } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, Users, Tag, Layers, Handshake, ChevronDown, ChevronUp, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound, List, Clock, Search, X, Trash2, SlidersHorizontal } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
@@ -19,6 +19,18 @@ type ExpenseWithDetails = Expense & {
 }
 type Tab = 'parts' | 'deals' | 'categories' | 'transfers'
 type ExpenseView = 'category' | 'person' | 'list'
+type RecentActivityTab = 'expenses' | 'transfers' | 'deals'
+type RecentActivityItem = {
+  id: string
+  label: string
+  date: string
+  activitySort: number
+  activityLabel: string | null
+  notes?: string | null
+  amount: number
+  tone: string
+  icon: React.ComponentType<{ size?: number; className?: string }>
+}
 
 interface Props {
   parts: ProjectPart[]
@@ -221,11 +233,17 @@ export default function HomeView({ parts, transfers, expenses, categories, deals
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(o => !o)}
-              className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 shadow-sm"
+              className={cn(
+                'flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold shadow-sm border transition-colors',
+                dropdownOpen
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 ring-2 ring-blue-100'
+                  : 'bg-white border-blue-100 text-slate-800'
+              )}
             >
-              {selectedPart && <span className="w-2 h-2 rounded-full" style={{ backgroundColor: selectedPart.color }} />}
+              <SlidersHorizontal size={14} className="text-blue-600" />
+              {selectedPart && <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: selectedPart.color }} />}
               {selectedPart ? selectedPart.name : 'All Parts'}
-              <ChevronDown size={13} className={cn('transition-transform', dropdownOpen && 'rotate-180')} />
+              <ChevronDown size={13} className={cn('transition-transform text-blue-600', dropdownOpen && 'rotate-180')} />
             </button>
             {dropdownOpen && (
               <div className="absolute top-full right-0 mt-1.5 bg-white rounded-2xl border border-slate-100 shadow-lg z-30 min-w-[160px] overflow-hidden">
@@ -1329,6 +1347,98 @@ function CategoryCard({ cat, total, count, pct, rows, isSupervisor, onEditExpens
 
 // ── Parts Report (accumulative summary only) ──────────────────────────────────
 
+function RecentActivitySection({ scopeId, recentTab, onTabChange, expenseLimit, onExpenseLimitChange, expenses, transfers, deals }: {
+  scopeId: string
+  recentTab: RecentActivityTab
+  onTabChange: (tab: RecentActivityTab) => void
+  expenseLimit: number
+  onExpenseLimitChange: (limit: number) => void
+  expenses: RecentActivityItem[]
+  transfers: RecentActivityItem[]
+  deals: RecentActivityItem[]
+}) {
+  const recentExpenses = expenses.slice(0, expenseLimit)
+  const recentTransfers = transfers.slice(0, 5)
+  const recentDeals = deals.slice(0, 5)
+  const recentItems = recentTab === 'expenses' ? recentExpenses : recentTab === 'transfers' ? recentTransfers : recentDeals
+  const canLoadMoreExpenses = recentTab === 'expenses' && expenseLimit < Math.min(expenses.length, 10)
+  const showExpenseMoreNote = recentTab === 'expenses' && expenseLimit >= 10 && expenses.length > 10
+  const hasAnyActivity = expenses.length > 0 || transfers.length > 0 || deals.length > 0
+  const tabs = [
+    { id: 'expenses' as const, label: 'Expenses', count: Math.min(expenses.length, 10) },
+    { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
+    { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
+  ]
+
+  if (!hasAnyActivity) return null
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3 px-1">
+        <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
+        <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+          {tabs.map(item => (
+            <button
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              className={cn(
+                'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
+                recentTab === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+              )}
+            >
+              {item.label} {item.count}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {recentItems.length > 0 ? (
+          recentItems.map((item, i) => {
+            const Icon = item.icon
+            return (
+              <div key={item.id} className={cn('flex items-start justify-between gap-3 px-4 py-3', i > 0 && 'border-t border-slate-100')}>
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0">
+                    <Icon size={15} className={item.tone} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] text-slate-300">{formatDate(item.date)}</span>
+                    </div>
+                    <p className="text-sm font-medium text-slate-800 truncate">{item.label}</p>
+                    {item.notes && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{item.notes}</p>}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <RecentActivityChip label={item.activityLabel} />
+                  <span className={cn('text-xs font-bold', item.tone)}>PKR {formatPKR(item.amount)}</span>
+                </div>
+              </div>
+            )
+          })
+        ) : (
+          <p className="px-4 py-5 text-sm text-slate-400">No recent {recentTab} for this {scopeId === 'all' ? 'view' : 'part'}.</p>
+        )}
+
+        {canLoadMoreExpenses && (
+          <button
+            onClick={() => onExpenseLimitChange(Math.min(expenseLimit + 5, 10))}
+            className="w-full px-4 py-3 text-sm font-semibold text-blue-600 border-t border-slate-100 bg-blue-50/40 active:bg-blue-50"
+          >
+            Load more expenses
+          </button>
+        )}
+        {showExpenseMoreNote && (
+          <p className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100 bg-slate-50">
+            Open the Expenses tab to see the full expense history.
+          </p>
+        )}
+      </div>
+    </>
+  )
+}
+
 function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   transfers: TransferWithPart[]
   expenses: ExpenseWithDetails[]
@@ -1336,8 +1446,58 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   parts: ProjectPart[]
   selectedPart?: ProjectPart
 }) {
-  const [recentTab, setRecentTab] = useState<'expenses' | 'transfers' | 'deals'>('expenses')
+  const [recentTab, setRecentTab] = useState<RecentActivityTab>('expenses')
   const [recentExpenseLimitState, setRecentExpenseLimitState] = useState({ partId: '', limit: 5 })
+  const activityScopeId = selectedPart?.id ?? 'all'
+  const recentExpenseLimit = recentExpenseLimitState.partId === activityScopeId ? recentExpenseLimitState.limit : 5
+  const recentExpensesAll: RecentActivityItem[] = expenses.map(item => {
+    const alloc = selectedPart ? item.expense_allocations.find(a => a.part_id === selectedPart.id) : undefined
+    return {
+      id: `expense-${item.id}`,
+      label: item.description || item.categories?.name || 'Expense',
+      date: item.date,
+      activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
+      activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
+      notes: item.notes,
+      amount: Number(alloc?.amount ?? item.total_amount),
+      tone: 'text-rose-500',
+      icon: TrendingDown,
+    }
+  }).sort((a, b) => b.activitySort - a.activitySort)
+  const recentTransfersAll: RecentActivityItem[] = transfers.map(item => ({
+    id: `transfer-${item.id}`,
+    label: item.from_person || 'Transfer received',
+    date: item.date,
+    activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
+    activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
+    notes: item.notes,
+    amount: Number(item.amount),
+    tone: 'text-emerald-600',
+    icon: ArrowDownToLine,
+  })).sort((a, b) => b.activitySort - a.activitySort)
+  const recentDealsAll: RecentActivityItem[] = deals.map(item => ({
+    id: `deal-${item.id}`,
+    label: item.name,
+    date: item.date,
+    activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
+    activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
+    notes: item.notes,
+    amount: dealTotal(item),
+    tone: 'text-blue-600',
+    icon: Handshake,
+  })).sort((a, b) => b.activitySort - a.activitySort)
+  const recentActivity = (
+    <RecentActivitySection
+      scopeId={activityScopeId}
+      recentTab={recentTab}
+      onTabChange={setRecentTab}
+      expenseLimit={recentExpenseLimit}
+      onExpenseLimitChange={limit => setRecentExpenseLimitState({ partId: activityScopeId, limit })}
+      expenses={recentExpensesAll}
+      transfers={recentTransfersAll}
+      deals={recentDealsAll}
+    />
+  )
 
   // ── Single part view ──────────────────────────────────────────────────────
   if (selectedPart) {
@@ -1347,7 +1507,6 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       return s + (alloc?.amount ?? 0)
     }, 0)
     const balance = deposited - spent
-    const recentExpenseLimit = recentExpenseLimitState.partId === selectedPart.id ? recentExpenseLimitState.limit : 5
 
     const topDeal = deals.reduce<DealWithPart | null>((top, deal) => {
       if (!top || dealTotal(deal) > dealTotal(top)) return deal
@@ -1359,49 +1518,6 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       if (!top || amount > top.amount) return { expense, amount }
       return top
     }, null)
-    const recentExpensesAll = expenses.map(item => {
-      const alloc = item.expense_allocations.find(a => a.part_id === selectedPart.id)
-      return {
-        id: `expense-${item.id}`,
-        type: 'Expense' as const,
-        label: item.description || item.categories?.name || 'Expense',
-        date: item.date,
-        activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
-        activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
-        notes: item.notes,
-        amount: Number(alloc?.amount ?? item.total_amount),
-        tone: 'text-rose-500',
-        icon: TrendingDown,
-      }
-    }).sort((a, b) => b.activitySort - a.activitySort)
-    const recentExpenses = recentExpensesAll.slice(0, recentExpenseLimit)
-    const canLoadMoreRecentExpenses = recentTab === 'expenses' && recentExpenseLimit < Math.min(recentExpensesAll.length, 10)
-    const showRecentExpensesMoreNote = recentTab === 'expenses' && recentExpenseLimit >= 10 && recentExpensesAll.length > 10
-    const recentTransfers = transfers.map(item => ({
-      id: `transfer-${item.id}`,
-      type: 'Transfer' as const,
-      label: item.from_person || 'Transfer received',
-      date: item.date,
-      activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
-      activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
-      notes: item.notes,
-      amount: Number(item.amount),
-      tone: 'text-emerald-600',
-      icon: ArrowDownToLine,
-    })).sort((a, b) => b.activitySort - a.activitySort).slice(0, 5)
-    const recentDeals = deals.map(item => ({
-      id: `deal-${item.id}`,
-      type: 'Deal' as const,
-      label: item.name,
-      date: item.date,
-      activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
-      activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
-      notes: item.notes,
-      amount: dealTotal(item),
-      tone: 'text-blue-600',
-      icon: Handshake,
-    })).sort((a, b) => b.activitySort - a.activitySort).slice(0, 5)
-    const recentItems = recentTab === 'expenses' ? recentExpenses : recentTab === 'transfers' ? recentTransfers : recentDeals
     const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
     const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
 
@@ -1457,98 +1573,9 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
           </div>
         </div>
 
-        {recentItems.length > 0 && (
-          <>
-            <div className="flex items-center justify-between gap-3 px-1">
-              <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
-              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
-                {[
-                  { id: 'expenses' as const, label: 'Expenses', count: Math.min(recentExpensesAll.length, 10) },
-                  { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
-                  { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
-                ].map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => setRecentTab(item.id)}
-                    className={cn(
-                      'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
-                      recentTab === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
-                    )}
-                  >
-                    {item.label} {item.count}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              {recentItems.map((item, i) => {
-                const Icon = item.icon
-                return (
-                  <div key={item.id} className={cn('flex items-start justify-between gap-3 px-4 py-3', i > 0 && 'border-t border-slate-100')}>
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0">
-                        <Icon size={15} className={item.tone} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[11px] text-slate-300">{formatDate(item.date)}</span>
-                        </div>
-                        <p className="text-sm font-medium text-slate-800 truncate">{item.label}</p>
-                        {item.notes && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{item.notes}</p>}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                      <RecentActivityChip label={item.activityLabel} />
-                      <span className={cn('text-xs font-bold', item.tone)}>PKR {formatPKR(item.amount)}</span>
-                    </div>
-                  </div>
-                )
-              })}
-              {canLoadMoreRecentExpenses && (
-                <button
-                  onClick={() => setRecentExpenseLimitState({ partId: selectedPart.id, limit: Math.min(recentExpenseLimit + 5, 10) })}
-                  className="w-full px-4 py-3 text-sm font-semibold text-blue-600 border-t border-slate-100 bg-blue-50/40 active:bg-blue-50"
-                >
-                  Load more expenses
-                </button>
-              )}
-              {showRecentExpensesMoreNote && (
-                <p className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100 bg-slate-50">
-                  Open the Expenses tab to see the full expense history.
-                </p>
-              )}
-            </div>
-          </>
-        )}
+        {recentActivity}
 
-        {recentItems.length === 0 && (recentExpenses.length > 0 || recentTransfers.length > 0 || recentDeals.length > 0) && (
-          <div className="rounded-2xl bg-white border border-slate-100 shadow-sm px-4 py-5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
-              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
-                {[
-                  { id: 'expenses' as const, label: 'Expenses', count: Math.min(recentExpensesAll.length, 10) },
-                  { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
-                  { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
-                ].map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => setRecentTab(item.id)}
-                    className={cn(
-                      'px-2 py-1 rounded-md text-[11px] font-semibold transition-colors',
-                      recentTab === item.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
-                    )}
-                  >
-                    {item.label} {item.count}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <p className="text-sm text-slate-400 mt-3">No recent {recentTab} for this part.</p>
-          </div>
-        )}
-
-        {recentExpenses.length === 0 && recentTransfers.length === 0 && recentDeals.length === 0 && spent === 0 && deposited === 0 && (
+        {recentExpensesAll.length === 0 && recentTransfersAll.length === 0 && recentDealsAll.length === 0 && spent === 0 && deposited === 0 && (
           <p className="text-center text-slate-400 text-sm py-8">No transactions for this part</p>
         )}
       </div>
@@ -1576,24 +1603,34 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   return (
     <div className="space-y-2.5">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-4 py-3.5">
-          <p className="text-xs text-slate-400 font-medium mb-1">Overall Balance</p>
-          <p className={cn('text-2xl font-bold', totalBalance < 0 ? 'text-red-500' : 'text-emerald-600')}>
-            {totalBalance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(totalBalance))}
-          </p>
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            <MiniMetric icon={Wallet} label="Received" value={`PKR ${formatPKR(totalDeposited)}`} color="text-emerald-600" bg="bg-emerald-50" />
-            <MiniMetric icon={TrendingDown} label="Spent" value={`PKR ${formatPKR(totalSpent)}`} color="text-rose-500" bg="bg-rose-50" />
-            <MiniMetric icon={Scale} label={totalBalance < 0 ? 'Deficit' : 'Remaining'} value={`PKR ${formatPKR(Math.abs(totalBalance))}`} color={totalBalance < 0 ? 'text-red-500' : 'text-amber-600'} bg={totalBalance < 0 ? 'bg-red-50' : 'bg-amber-50'} />
+        <div className="px-4 py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-slate-400 font-medium">Overall Balance</p>
+              <p className={cn('text-3xl font-bold mt-1', totalBalance < 0 ? 'text-red-500' : 'text-emerald-600')}>
+                {totalBalance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(totalBalance))}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">{totalBalance >= 0 ? 'cash remaining across all parts' : 'deficit across all parts'}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <span className={cn(
+                'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold',
+                totalBalance < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+              )}>
+                <Scale size={11} />
+                {totalBalance < 0 ? 'Deficit' : 'Healthy'}
+              </span>
+              <p className="text-xs text-slate-400 mt-1">{activeParts} active part{activeParts !== 1 ? 's' : ''}</p>
+            </div>
           </div>
         </div>
-        <div className="px-4 pb-3">
+        <div className="px-4 pb-4">
           <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div className="h-full bg-blue-600 rounded-full" style={{ width: `${spentPct}%` }} />
           </div>
           <div className="flex items-center justify-between mt-1 text-xs text-slate-400">
             <span>{totalDeposited > 0 ? `${(totalSpent / totalDeposited * 100).toFixed(0)}% spent` : 'No received funds yet'}</span>
-            <span>{activeParts} active part{activeParts !== 1 ? 's' : ''}</span>
+            <span>PKR {formatPKR(totalSpent)} spent</span>
           </div>
         </div>
       </div>
@@ -1604,31 +1641,44 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
         <SummaryCard label="Deals" value={String(deals.length)} sub="contracts" />
       </div>
 
-      {summaries.map(({ part, deposited, spent, balance }) => (
-        <div key={part.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-3.5 flex items-center justify-between" style={{ borderLeft: `4px solid ${part.color}` }}>
-            <div>
-              <p className="text-sm font-bold text-slate-900">{part.name}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{formatPKR(deposited)} in · {formatPKR(spent)} out</p>
-            </div>
-            <div className="text-right">
-              <p className={cn('text-sm font-bold', balance >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+      <div className="grid grid-cols-2 gap-2">
+        {summaries.map(({ part, deposited, spent, balance }) => (
+          <div key={part.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-3 py-3.5" style={{ borderTop: `3px solid ${part.color}` }}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{part.name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{part.short_name}</p>
+                </div>
+                <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1" style={{ backgroundColor: part.color }} />
+              </div>
+              <p className={cn('text-base font-bold mt-3', balance >= 0 ? 'text-emerald-600' : 'text-red-500')}>
                 {balance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(balance))}
               </p>
-              <p className="text-xs text-slate-400">{balance >= 0 ? 'remaining' : 'deficit'}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{balance >= 0 ? 'remaining' : 'deficit'}</p>
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-slate-400">In</span>
+                  <span className="font-semibold text-emerald-600">PKR {formatPKR(deposited)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-slate-400">Out</span>
+                  <span className="font-semibold text-rose-500">PKR {formatPKR(spent)}</span>
+                </div>
+              </div>
+            </div>
+            <div className="px-3 pb-3">
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full"
+                  style={{ width: `${deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0}%`, backgroundColor: part.color }} />
+              </div>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {deposited > 0 ? `${((spent / deposited) * 100).toFixed(0)}% spent` : 'No deposits yet'}
+              </p>
             </div>
           </div>
-          <div className="px-4 pb-3 pt-2 border-t border-slate-100">
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full"
-                style={{ width: `${deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0}%`, backgroundColor: part.color }} />
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              {deposited > 0 ? `${((spent / deposited) * 100).toFixed(0)}% spent` : 'No deposits yet'}
-            </p>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
