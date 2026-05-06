@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { Clock, User, Smartphone, Monitor } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { dateStart, dateEnd } from '@/lib/date-ranges'
@@ -11,74 +12,138 @@ function param(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value
 }
 
-function formatVisitTime(value: string) {
-  return new Date(value).toLocaleString('en-PK', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Karachi',
-  })
+// ── Readable query params ───────────────────────────────────────────────────
+function formatQueryParams(
+  raw: string,
+  profileMap: Map<string, { name: string | null }>
+): string {
+  const params = new URLSearchParams(raw)
+  const parts: string[] = []
+
+  const period = params.get('period')
+  if (period) parts.push(`period: ${period}`)
+
+  const userId = params.get('user')
+  if (userId) {
+    const name = userId === 'all' ? 'all' : (profileMap.get(userId)?.name ?? userId.slice(0, 8))
+    parts.push(`user: ${name}`)
+  }
+
+  const path = params.get('path')
+  if (path) parts.push(`page: ${path}`)
+
+  // Any extra params not already handled
+  for (const [key, value] of params.entries()) {
+    if (['period', 'user', 'path'].includes(key)) continue
+    parts.push(`${key}: ${value}`)
+  }
+
+  return parts.join(' · ')
 }
 
-// Parse a friendly device name from user-agent
-function parseDevice(ua: string | null): string {
-  if (!ua) return 'Unknown'
+// ── Time formatting ─────────────────────────────────────────────────────────
+function formatTime(value: string) {
+  return new Date(value).toLocaleString('en-PK', {
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'Asia/Karachi',
+  }) + ' PKT'
+}
 
-  // iOS
-  if (ua.includes('iPhone')) return 'iPhone'
-  if (ua.includes('iPad')) return 'iPad'
+// ── Brand detection from Android model string ───────────────────────────────
+function parseBrand(model: string): string {
+  const m = model.toUpperCase()
+  if (m.startsWith('SM-') || m.startsWith('SAMSUNG'))          return 'Samsung'
+  if (m.startsWith('PIXEL'))                                    return 'Google'
+  if (m.startsWith('ONEPLUS') || m.startsWith('ONE PLUS'))     return 'OnePlus'
+  if (m.startsWith('REDMI') || m.startsWith('MI ') || m.startsWith('MI_')) return 'Xiaomi'
+  if (m.startsWith('POCO'))                                     return 'POCO'
+  if (m.startsWith('VIVO') || m.startsWith('V2') || m.startsWith('V1')) return 'vivo'
+  if (m.startsWith('CPH') || m.startsWith('OPPO'))             return 'OPPO'
+  if (m.startsWith('RMX') || m.startsWith('REALME'))           return 'Realme'
+  if (m.startsWith('HUAWEI') || m.startsWith('CLT') || m.startsWith('ANA') || m.startsWith('ELS')) return 'Huawei'
+  if (m.startsWith('NOKIA'))                                    return 'Nokia'
+  if (m.startsWith('MOTO') || m.startsWith('XT'))              return 'Motorola'
+  if (m.startsWith('TECNO'))                                    return 'Tecno'
+  if (m.startsWith('INFINIX'))                                  return 'Infinix'
+  if (m.startsWith('HONOR'))                                    return 'Honor'
+  if (m.startsWith('ITEL'))                                     return 'itel'
+  return ''
+}
 
-  // Android — extract model from e.g. "Linux; Android 13; SM-S918B Build/..."
+// ── Device name + type from user-agent ─────────────────────────────────────
+type DeviceInfo = { label: string; type: 'mobile' | 'desktop' }
+
+function parseDevice(ua: string | null): DeviceInfo {
+  if (!ua) return { label: 'Unknown', type: 'mobile' }
+
+  if (ua.includes('iPhone')) return { label: 'iPhone', type: 'mobile' }
+  if (ua.includes('iPad'))   return { label: 'iPad',   type: 'mobile' }
+
   if (ua.includes('Android')) {
     const match = ua.match(/Android[^;]*;\s*([^)]+?)(?:\s+Build|\s+wv|\))/i)
     if (match) {
       const raw = match[1].trim()
-      if (!raw || raw.toLowerCase().startsWith('linux')) return 'Android'
-      // Trim to 28 chars to keep it readable
-      return raw.length > 28 ? raw.slice(0, 28) : raw
+      if (!raw || raw.toLowerCase().startsWith('linux')) return { label: 'Android', type: 'mobile' }
+      const model  = raw.length > 24 ? raw.slice(0, 24) : raw
+      const brand  = parseBrand(model)
+      const label  = brand ? `${brand} ${model}` : model
+      return { label, type: 'mobile' }
     }
-    return 'Android'
+    return { label: 'Android', type: 'mobile' }
   }
 
-  // Desktop
-  if (ua.includes('Windows')) return 'Windows'
-  if (ua.includes('Macintosh') || ua.includes('Mac OS X')) return 'Mac'
-  if (ua.includes('Linux')) return 'Linux'
+  if (ua.includes('Windows'))                              return { label: 'Windows', type: 'desktop' }
+  if (ua.includes('Macintosh') || ua.includes('Mac OS X')) return { label: 'Mac',     type: 'desktop' }
+  if (ua.includes('Linux'))                                return { label: 'Linux',   type: 'desktop' }
 
-  return 'Unknown'
+  return { label: 'Unknown', type: 'mobile' }
 }
 
-// Country code → flag emoji (works without any library)
+// ── Country display ─────────────────────────────────────────────────────────
+const COUNTRY_NAMES: Record<string, string> = {
+  PK: 'Pakistan',      SA: 'Saudi Arabia', AE: 'UAE',
+  US: 'United States', GB: 'UK',           IN: 'India',
+  DE: 'Germany',       FR: 'France',       CA: 'Canada',
+  AU: 'Australia',     SG: 'Singapore',    MY: 'Malaysia',
+  QA: 'Qatar',         KW: 'Kuwait',       BH: 'Bahrain',
+  OM: 'Oman',          EG: 'Egypt',        TR: 'Turkey',
+}
+
 function countryFlag(code: string): string {
+  if (code.length !== 2) return ''
   return [...code.toUpperCase()]
     .map(c => String.fromCodePoint(127397 + c.charCodeAt(0)))
     .join('')
 }
 
-const COUNTRY_NAMES: Record<string, string> = {
-  PK: 'Pakistan', SA: 'Saudi Arabia', AE: 'UAE',
-  US: 'United States', GB: 'United Kingdom', IN: 'India',
-  DE: 'Germany', FR: 'France', CA: 'Canada', AU: 'Australia',
-  SG: 'Singapore', MY: 'Malaysia', QA: 'Qatar', KW: 'Kuwait',
-  BH: 'Bahrain', OM: 'Oman', EG: 'Egypt', TR: 'Turkey',
+function countryLabel(code: string | null): { flag: string; name: string } | null {
+  if (!code || code.length < 2) return null
+  return {
+    flag: countryFlag(code),
+    name: COUNTRY_NAMES[code.toUpperCase()] ?? code.toUpperCase(),
+  }
 }
 
-function countryLabel(code: string | null): string | null {
-  if (!code) return null
-  const flag = countryFlag(code)
-  const name = COUNTRY_NAMES[code.toUpperCase()] ?? code
-  return `${flag} ${name}`
-}
-
-// Compute date range from a simple period slug
+// ── Period helpers ──────────────────────────────────────────────────────────
 function pktToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date())
 }
 function pktDaysAgo(n: number): string {
   const d = new Date()
-  d.setUTCDate(d.getUTCDate() - n)
+  d.setDate(d.getDate() - n)
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(d)
+}
+function pktDateOf(value: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date(value))
+}
+function dateGroupLabel(date: string): string {
+  const today     = pktToday()
+  const yesterday = pktDaysAgo(1)
+  if (date === today)     return 'Today'
+  if (date === yesterday) return 'Yesterday'
+  return new Date(date + 'T12:00:00').toLocaleDateString('en-PK', {
+    day: 'numeric', month: 'long',
+  })
 }
 
 const PERIODS = [
@@ -91,14 +156,15 @@ type Period = typeof PERIODS[number]['id']
 
 function periodRange(period: Period): { from?: string; to?: string } {
   const today = pktToday()
-  if (period === 'today') return { from: today, to: today }
-  if (period === 'week')  return { from: pktDaysAgo(6), to: today }
+  if (period === 'today') return { from: today,          to: today }
+  if (period === 'week')  return { from: pktDaysAgo(6),  to: today }
   if (period === 'month') return { from: pktDaysAgo(29), to: today }
   return {}
 }
 
+// ── Page ────────────────────────────────────────────────────────────────────
 export default async function VisitsPage({ searchParams }: { searchParams: SearchParams }) {
-  const params = await searchParams
+  const params   = await searchParams
   const supabase = await createClient()
 
   // Supervisor-only guard
@@ -114,9 +180,9 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
     )
   }
 
-  const userId = param(params.user) ?? 'all'
+  const userId = param(params.user)   ?? 'all'
   const path   = param(params.path)   ?? 'all'
-  const period = (param(params.period) ?? 'all') as Period
+  const period = (param(params.period) ?? 'week') as Period
 
   const [{ data: profiles }, { data: allPaths }] = await Promise.all([
     supabase.from('profiles').select('id, name, role').order('name'),
@@ -133,8 +199,8 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
 
   if (userId !== 'all') query = query.eq('user_id', userId)
   if (path   !== 'all') query = query.eq('path', path)
-  if (from) query = query.gte('visited_at', dateStart(from)!)
-  if (to)   query = query.lte('visited_at', dateEnd(to)!)
+  if (from)  query = query.gte('visited_at', dateStart(from)!)
+  if (to)    query = query.lte('visited_at', dateEnd(to)!)
 
   const { data: visits } = await query
 
@@ -142,9 +208,9 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
     (allPaths ?? []).map(row => row.path ?? '').filter(Boolean)
   )].sort()
 
-  const profileMap  = new Map((profiles ?? []).map(p => [p.id, p]))
-  const totalShown  = visits?.length ?? 0
-  const atCap       = totalShown === 300
+  const profileMap = new Map((profiles ?? []).map(p => [p.id, p]))
+  const totalShown = visits?.length ?? 0
+  const atCap      = totalShown === 300
 
   const uniqueUsers = new Set(visits?.map(v => v.user_id)).size
   const pathCounts: Record<string, number> = {}
@@ -154,7 +220,17 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
   }
   const topPath = Object.entries(pathCounts).sort((a, b) => b[1] - a[1])[0]
 
-  // Build base params for period links (preserve user/path filters)
+  // Group by PKT date
+  type VisitRow = NonNullable<typeof visits>[number]
+  const dateGroups: { date: string; label: string; rows: VisitRow[] }[] = []
+  for (const visit of visits ?? []) {
+    const d = pktDateOf(visit.visited_at)
+    if (dateGroups.at(-1)?.date !== d) {
+      dateGroups.push({ date: d, label: dateGroupLabel(d), rows: [] })
+    }
+    dateGroups.at(-1)!.rows.push(visit)
+  }
+
   function periodHref(p: Period) {
     const sp = new URLSearchParams()
     if (userId !== 'all') sp.set('user', userId)
@@ -166,33 +242,32 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
 
   return (
     <div className="px-4 pt-5 pb-8">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-slate-900">Page Visits</h1>
+        <p className="text-xs text-slate-400">Who opened what and when</p>
+      </div>
+
+      {/* Filters — period pills + dropdowns in one card */}
+      <form action="/visits" method="get" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 mb-4 space-y-3">
+        {/* Period pills */}
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Page Visits</h1>
-          <p className="text-xs text-slate-400">Latest page views</p>
+          <p className="text-[11px] font-medium text-slate-400 mb-1.5">Period</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {PERIODS.map(p => (
+              <Link
+                key={p.id}
+                href={periodHref(p.id)}
+                className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  period === p.id
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : 'border-slate-200 bg-slate-50 text-slate-500'
+                }`}
+              >
+                {p.label}
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* Period pills */}
-      <div className="flex gap-1.5 mb-3">
-        {PERIODS.map(p => (
-          <Link
-            key={p.id}
-            href={periodHref(p.id)}
-            className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-              period === p.id
-                ? 'border-blue-200 bg-blue-50 text-blue-700'
-                : 'border-slate-200 bg-white text-slate-500'
-            }`}
-          >
-            {p.label}
-          </Link>
-        ))}
-      </div>
-
-      {/* User + Page filters */}
-      <form action="/visits" method="get" className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 mb-4 space-y-2">
-        {/* Preserve period in form submission */}
         {period !== 'all' && <input type="hidden" name="period" value={period} />}
         <div className="grid grid-cols-2 gap-2">
           <label className="space-y-1">
@@ -243,34 +318,68 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
           Showing 300 of more results — filter by user, page or period to narrow down
         </p>
       )}
-
-      {(!visits || visits.length === 0) && (
+      {totalShown === 0 && (
         <p className="text-center text-slate-400 text-sm py-10">No visits found</p>
       )}
 
-      <div className="space-y-2">
-        {(visits ?? []).map(visit => {
-          const p      = profileMap.get(visit.user_id)
-          const device = parseDevice(visit.user_agent)
-          const country = countryLabel(visit.country)
-          const joinedPath = `${visit.path}${visit.query ? `?${visit.query}` : ''}`
-          return (
-            <div key={visit.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{joinedPath}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{p?.name ?? 'Unknown'}</p>
-                  <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-1 text-xs text-slate-400">
-                    <span>{device}</span>
-                    {country && <span>{country}</span>}
-                    <span>{formatVisitTime(visit.visited_at)}</span>
+      {/* Date-grouped rows */}
+      <div className="space-y-4">
+        {dateGroups.map(group => (
+          <div key={group.date}>
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2 px-1">
+              {group.label}
+            </p>
+            <div className="space-y-2">
+              {group.rows.map(visit => {
+                const prof    = profileMap.get(visit.user_id)
+                const device  = parseDevice(visit.user_agent)
+                const country = countryLabel(visit.country)
+                const DeviceIcon = device.type === 'desktop' ? Monitor : Smartphone
+                const deviceIconClass = device.type === 'desktop'
+                  ? 'text-slate-400'
+                  : 'text-blue-400'
+                return (
+                  <div key={visit.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100">
+                    {/* Row 1: path (clean, no query) + time */}
+                    <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{visit.path}</p>
+                      <p className="flex items-center gap-1 text-[11px] text-slate-400 flex-shrink-0">
+                        <Clock className="w-3 h-3" />
+                        {formatTime(visit.visited_at)}
+                      </p>
+                    </div>
+                    {/* Row 2: user (left) · device + country (right) */}
+                    <div className="flex items-center justify-between gap-2 text-xs text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3 flex-shrink-0" />
+                        <span className="text-slate-500">{prof?.name ?? 'Unknown'}</span>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <DeviceIcon className={`w-3 h-3 flex-shrink-0 ${deviceIconClass}`} />
+                        <span>{device.label}</span>
+                        {country && (
+                          <span className="flex items-center gap-0.5 ml-1">
+                            <span>{country.flag}</span>
+                            <span>{country.name}</span>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    {/* Query params — translated, hidden by default */}
+                    {visit.query && (
+                      <details className="mt-1.5">
+                        <summary className="cursor-pointer text-[11px] text-slate-300 select-none">params</summary>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {formatQueryParams(visit.query, profileMap)}
+                        </p>
+                      </details>
+                    )}
                   </div>
-                </div>
-                <span className="text-[11px] rounded-full bg-slate-50 text-slate-500 px-2 py-0.5 capitalize flex-shrink-0">{p?.role ?? 'user'}</span>
-              </div>
+                )
+              })}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </div>
   )
