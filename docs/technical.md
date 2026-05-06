@@ -20,13 +20,14 @@
 app/
   (auth)/login/         — Login page
   (app)/                — Authenticated shell with bottom nav
-    page.tsx            — Redirects to reports
-    transfers/          — Transfers list page
-    expenses/           — Expenses list page
-    records/            — Transactions + deals tabs
-    transactions/       — Redirects to records
-    deals/              — Redirects to records deals tab
-    reports/            — Reports page (server fetches all data)
+    page.tsx            — Redirects to /home
+    home/               — Main Home page; server fetches all data in page.tsx and renders HomeView.tsx
+    transfers/          — Redirects to /home
+    expenses/           — Redirects to /home
+    records/            — Redirects to /home
+    transactions/       — Redirects to /home
+    deals/              — Redirects to /home
+    reports/            — Redirects to /home
     settings/
       categories/       — Category CRUD
       parts/            — Project part CRUD
@@ -51,6 +52,28 @@ docs/
   product.md            — Product reference (features, flows, business logic)
   technical.md          — This file
 ```
+
+---
+
+## Route Ownership
+
+`/home` is the primary finance workspace. `app/(app)/home/page.tsx` owns the
+server-side Supabase reads and passes the data into
+`app/(app)/home/HomeView.tsx`, which owns the visible tabs:
+
+| Visible tab | Implementation in `HomeView.tsx` |
+|-------------|-----------------------------------|
+| Overview | `PartsReport` |
+| Expenses → List | `ExpensesListReport` |
+| Expenses → Category | `CategoriesReport` |
+| Expenses → Person | `PeopleReport` |
+| Transfers | `TransfersListReport` |
+| Deals | `DealsReport` / `DealPersonCard` |
+
+Legacy route files for `/reports`, `/expenses`, `/transfers`, `/deals`,
+`/records`, and `/transactions` redirect to `/home`. When product requests
+mention those tabs as pages, update `HomeView.tsx` unless the request is about
+data loading in `home/page.tsx`.
 
 ---
 

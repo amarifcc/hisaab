@@ -46,20 +46,26 @@ A contacts list used for autocomplete on `from_person` (transfers) and `paid_to`
 
 ## Pages
 
+### Home
+The primary workspace is `/home`. It contains the Overview, Expenses,
+Transfers, and Deals tabs. The old route-level pages for reports, expenses,
+transfers, deals, records, and transactions redirect into `/home`, so user
+requests that mention those areas usually refer to tabs inside Home.
+
 ### Records
-Combined workspace for transactions and deals. The Transactions tab shows transfers and expenses with search by reference, name, description, or notes. The Deals tab shows contractor+part deal groups with contractor filtering. Each tab keeps the relevant Add action.
+Redirects to Home. Records-style transaction and deal workflows now live as Home tabs.
 
 ### Transfers
-List of money received per owner per part. Sorted by date. Part filter persists in localStorage.
+Home tab listing money received per owner per part. Sorted by date. Part filter persists in localStorage.
 
 ### Expenses
-List of expenses with category filter tabs. Part filter persists in localStorage.
+Home tab with list, category, and person views. Part filter persists in localStorage.
 
 ### Deals
-Available inside Records. Contractor deals are grouped by contractor+part. Summary cards show group agreed, paid, remaining, with individual deals and revision timelines underneath. Part and contractor filters help narrow the list.
+Home tab. Contractor deals are grouped by contractor+part. Summary cards show group agreed, paid, remaining, with individual deals and revision timelines underneath. Part and contractor filters help narrow the list.
 
-### Reports
-Four tabs sharing a global part filter dropdown:
+### Home Tabs
+Four primary tabs share a global part filter dropdown:
 
 | Tab | Content |
 |-----|---------|
@@ -68,7 +74,7 @@ Four tabs sharing a global part filter dropdown:
 | **People** | Expenses grouped by `paid_to`. Multi-select to filter contractors → flat transaction list. |
 | **Deals** | Per-contractor: agreed / paid / remaining. Expanded cards show contractor+part groups, individual deals, and revision timelines. |
 
-Share button captures the report as PNG and invokes the native share sheet (Android) or downloads on desktop.
+Share/export behavior, if present, captures the current view as PNG and invokes the native share sheet (Android) or downloads on desktop.
 
 ### Settings — People
 Manage the contacts list. Adding an owner requires selecting their project part. Person cards show type badge and (for owners) their assigned part chip.
@@ -86,4 +92,4 @@ Basic CRUD for expense categories and project parts (supervisor only).
 
 **Expense allocations**: A single expense can be allocated across multiple parts. The `expense_allocations` table stores the per-part amounts. In transaction/expense lists, multi-part expenses appear as linked rows per part using the same reference number. When a part filter is active, only that part's allocation amount is shown, not the total.
 
-**Part filter persistence**: Each page saves its active part filter in localStorage under a page-specific key (`hisab_transactions_filter_part`, `hisab_expenses_filter_part`, `hisab_deals_filter_part`, `hisab_transfers_filter_part`, `hisab_reports_filter_part`).
+**Part filter persistence**: Home saves its active part filter in localStorage under `hisab_reports_filter_part`. Some legacy pages may still have older page-specific keys in code or migrations, but the current visible finance workspace is `/home`.

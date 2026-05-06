@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
-import ReportsView from '../reports/ReportsView'
+import HomeView from './HomeView'
 
 type PaidExpenseRow = {
   paid_to: string | null
@@ -41,7 +41,7 @@ export default async function HomePage() {
   }
 
   return (
-    <ReportsView
+    <HomeView
       parts={parts ?? []}
       transfers={transfers ?? []}
       expenses={expenses ?? []}

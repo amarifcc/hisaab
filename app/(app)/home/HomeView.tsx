@@ -49,7 +49,7 @@ function subscribePartFilter(onStoreChange: () => void) {
   }
 }
 
-export default function ReportsView({ parts, transfers, expenses, categories, deals, paidMap, isSupervisor }: Props) {
+export default function HomeView({ parts, transfers, expenses, categories, deals, paidMap, isSupervisor }: Props) {
   const [tab, setTab] = useState<Tab>('parts')
   const [reportTransfers, setReportTransfers] = useState(transfers)
   const [reportExpenses, setReportExpenses] = useState(expenses)
@@ -428,6 +428,68 @@ function DateSortButton({ sortByLog, onToggle }: { sortByLog: boolean; onToggle:
   )
 }
 
+function todayDateKey() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date())
+
+  const year = parts.find(part => part.type === 'year')?.value
+  const month = parts.find(part => part.type === 'month')?.value
+  const day = parts.find(part => part.type === 'day')?.value
+  return year && month && day ? `${year}-${month}-${day}` : new Date().toISOString().slice(0, 10)
+}
+
+function isTodayDate(dateStr?: string | null) {
+  if (!dateStr) return false
+  return dateStr.slice(0, 10) === todayDateKey()
+}
+
+function TodayChip({ date }: { date?: string | null }) {
+  if (!isTodayDate(date)) return null
+
+  return (
+    <span
+      className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0"
+      suppressHydrationWarning
+    >
+      Today
+    </span>
+  )
+}
+
+function activityTimeValue(dateStr?: string | null) {
+  if (!dateStr) return 0
+  const value = Date.parse(dateStr)
+  return Number.isNaN(value) ? 0 : value
+}
+
+function recentActivitySortValue(...dates: (string | null | undefined)[]) {
+  return Math.max(...dates.map(activityTimeValue))
+}
+
+function recentActivityLabel(date?: string | null, createdAt?: string | null, updatedAt?: string | null) {
+  if (isTodayDate(date)) return 'Today'
+  if (isTodayDate(createdAt)) return 'Added today'
+  if (isTodayDate(updatedAt)) return 'Updated today'
+  return null
+}
+
+function RecentActivityChip({ label }: { label?: string | null }) {
+  if (!label) return null
+
+  return (
+    <span
+      className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded flex-shrink-0"
+      suppressHydrationWarning
+    >
+      {label}
+    </span>
+  )
+}
+
 function MiniMetric({ icon: Icon, label, value, color, bg }: {
   icon: React.ComponentType<{ size?: number; className?: string }>
   label: string
@@ -722,9 +784,9 @@ function TransfersListReport({ transfers, isSupervisor, onEdit, onDelete }: {
               <div key={t.id} className={cn(i > 0 && 'border-t border-slate-100')}>
                 <button
                   onClick={() => setExpandedId(prev => prev === t.id ? null : t.id)}
-                  className="w-full px-4 py-3 flex items-center justify-between text-left"
+                  className="w-full px-4 py-3 flex items-start justify-between text-left"
                 >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
                       <ArrowDownLeft size={17} className="text-emerald-600" />
                     </div>
@@ -746,9 +808,12 @@ function TransfersListReport({ transfers, isSupervisor, onEdit, onDelete }: {
                       {t.notes && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{t.notes}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                    <span className="text-sm font-bold text-emerald-600">+PKR {formatPKR(Number(t.amount))}</span>
-                    {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                  <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
+                    <TodayChip date={t.date} />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-emerald-600">+PKR {formatPKR(Number(t.amount))}</span>
+                      {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                    </div>
                   </div>
                 </button>
 
@@ -863,7 +928,7 @@ function ExpensesListReport({ expenses, selectedPart, isSupervisor, onEditExpens
               <div key={row.id} className={cn(i > 0 && 'border-t border-slate-100')}>
                 <button
                   onClick={() => setExpandedId(prev => prev === row.id ? null : row.id)}
-                  className="w-full px-4 py-3 flex items-center justify-between text-left"
+                  className="w-full px-4 py-3 flex items-start justify-between text-left"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
@@ -874,9 +939,12 @@ function ExpensesListReport({ expenses, selectedPart, isSupervisor, onEditExpens
                     <ExpenseMeta expense={row.expense} />
                     <NotesList notes={row.expense.notes} />
                   </div>
-                  <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                    <span className="text-sm font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
-                    {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                  <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
+                    <TodayChip date={row.expense.date} />
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-rose-500">PKR {formatPKR(row.amount)}</span>
+                      {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
+                    </div>
                   </div>
                 </button>
 
@@ -887,6 +955,7 @@ function ExpensesListReport({ expenses, selectedPart, isSupervisor, onEditExpens
                       {row.expense.categories && <p><span className="text-slate-400">Category:</span> {row.expense.categories.name}</p>}
                       {row.expense.paid_to && <p><span className="text-slate-400">Paid to:</span> {row.expense.paid_to}</p>}
                       <p><span className="text-slate-400">Date:</span> {formatDate(row.expense.date)}</p>
+                      {row.expense.notes && <p><span className="text-slate-400">Notes:</span> {row.expense.notes}</p>}
                       {allocs.length > 1 && (
                         <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 mt-2">
                           <p className="text-xs font-semibold text-slate-500 mb-1.5">Allocated</p>
@@ -1268,6 +1337,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
   selectedPart?: ProjectPart
 }) {
   const [recentTab, setRecentTab] = useState<'expenses' | 'transfers' | 'deals'>('expenses')
+  const [recentExpenseLimitState, setRecentExpenseLimitState] = useState({ partId: '', limit: 5 })
 
   // ── Single part view ──────────────────────────────────────────────────────
   if (selectedPart) {
@@ -1277,6 +1347,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       return s + (alloc?.amount ?? 0)
     }, 0)
     const balance = deposited - spent
+    const recentExpenseLimit = recentExpenseLimitState.partId === selectedPart.id ? recentExpenseLimitState.limit : 5
 
     const topDeal = deals.reduce<DealWithPart | null>((top, deal) => {
       if (!top || dealTotal(deal) > dealTotal(top)) return deal
@@ -1288,36 +1359,48 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       if (!top || amount > top.amount) return { expense, amount }
       return top
     }, null)
-    const recentExpenses = expenses.map(item => {
+    const recentExpensesAll = expenses.map(item => {
       const alloc = item.expense_allocations.find(a => a.part_id === selectedPart.id)
       return {
         id: `expense-${item.id}`,
         type: 'Expense' as const,
         label: item.description || item.categories?.name || 'Expense',
         date: item.date,
+        activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
+        activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
+        notes: item.notes,
         amount: Number(alloc?.amount ?? item.total_amount),
         tone: 'text-rose-500',
         icon: TrendingDown,
       }
-    }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    }).sort((a, b) => b.activitySort - a.activitySort)
+    const recentExpenses = recentExpensesAll.slice(0, recentExpenseLimit)
+    const canLoadMoreRecentExpenses = recentTab === 'expenses' && recentExpenseLimit < Math.min(recentExpensesAll.length, 10)
+    const showRecentExpensesMoreNote = recentTab === 'expenses' && recentExpenseLimit >= 10 && recentExpensesAll.length > 10
     const recentTransfers = transfers.map(item => ({
       id: `transfer-${item.id}`,
       type: 'Transfer' as const,
       label: item.from_person || 'Transfer received',
       date: item.date,
+      activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
+      activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
+      notes: item.notes,
       amount: Number(item.amount),
       tone: 'text-emerald-600',
       icon: ArrowDownToLine,
-    })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    })).sort((a, b) => b.activitySort - a.activitySort).slice(0, 5)
     const recentDeals = deals.map(item => ({
       id: `deal-${item.id}`,
       type: 'Deal' as const,
       label: item.name,
       date: item.date,
+      activitySort: recentActivitySortValue(item.date, item.created_at, item.updated_at),
+      activityLabel: recentActivityLabel(item.date, item.created_at, item.updated_at),
+      notes: item.notes,
       amount: dealTotal(item),
       tone: 'text-blue-600',
       icon: Handshake,
-    })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+    })).sort((a, b) => b.activitySort - a.activitySort).slice(0, 5)
     const recentItems = recentTab === 'expenses' ? recentExpenses : recentTab === 'transfers' ? recentTransfers : recentDeals
     const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
     const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
@@ -1380,7 +1463,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
               <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
               <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
                 {[
-                  { id: 'expenses' as const, label: 'Expenses', count: recentExpenses.length },
+                  { id: 'expenses' as const, label: 'Expenses', count: Math.min(recentExpensesAll.length, 10) },
                   { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
                   { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
                 ].map(item => (
@@ -1401,23 +1484,39 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
               {recentItems.map((item, i) => {
                 const Icon = item.icon
                 return (
-                  <div key={item.id} className={cn('flex items-center justify-between gap-3 px-4 py-3', i > 0 && 'border-t border-slate-100')}>
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div key={item.id} className={cn('flex items-start justify-between gap-3 px-4 py-3', i > 0 && 'border-t border-slate-100')}>
+                    <div className="flex items-start gap-3 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0">
                         <Icon size={15} className={item.tone} />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-semibold text-slate-400">{item.type}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[11px] text-slate-300">{formatDate(item.date)}</span>
                         </div>
                         <p className="text-sm font-medium text-slate-800 truncate">{item.label}</p>
+                        {item.notes && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{item.notes}</p>}
                       </div>
                     </div>
-                    <span className={cn('text-xs font-bold flex-shrink-0', item.tone)}>PKR {formatPKR(item.amount)}</span>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <RecentActivityChip label={item.activityLabel} />
+                      <span className={cn('text-xs font-bold', item.tone)}>PKR {formatPKR(item.amount)}</span>
+                    </div>
                   </div>
                 )
               })}
+              {canLoadMoreRecentExpenses && (
+                <button
+                  onClick={() => setRecentExpenseLimitState({ partId: selectedPart.id, limit: Math.min(recentExpenseLimit + 5, 10) })}
+                  className="w-full px-4 py-3 text-sm font-semibold text-blue-600 border-t border-slate-100 bg-blue-50/40 active:bg-blue-50"
+                >
+                  Load more expenses
+                </button>
+              )}
+              {showRecentExpensesMoreNote && (
+                <p className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100 bg-slate-50">
+                  Open the Expenses tab to see the full expense history.
+                </p>
+              )}
             </div>
           </>
         )}
@@ -1428,7 +1527,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
               <p className="text-xs font-semibold text-slate-500">Recent Activity</p>
               <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
                 {[
-                  { id: 'expenses' as const, label: 'Expenses', count: recentExpenses.length },
+                  { id: 'expenses' as const, label: 'Expenses', count: Math.min(recentExpensesAll.length, 10) },
                   { id: 'transfers' as const, label: 'Transfers', count: recentTransfers.length },
                   { id: 'deals' as const, label: 'Deals', count: recentDeals.length },
                 ].map(item => (
@@ -1738,6 +1837,13 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-slate-700 truncate">{d.name}</p>
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                            <span className="inline-flex items-center gap-1">
+                              <CalendarDays size={11} className="text-slate-300" />
+                              {formatDate(d.date)}
+                            </span>
+                          </div>
+                          <NotesList notes={d.notes} className="text-[11px]" />
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-xs font-bold text-blue-600">PKR {formatPKR(dealTotal(d))}</span>
@@ -1761,7 +1867,9 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                           <div key={revision.id} className="flex items-start justify-between gap-2 text-xs">
                             <div className="min-w-0">
                               <p className="text-slate-500 truncate">V{revision.revision_number} · {revision.scope_description}</p>
-                              <p className="text-slate-400">{formatDate(revision.date)}</p>
+                              <div className="flex items-center gap-1.5 flex-wrap text-slate-400">
+                                <span>{formatDate(revision.date)}</span>
+                              </div>
                               <NotesList notes={revision.notes} />
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1802,7 +1910,9 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                             <div key={e.id} className="flex items-center justify-between rounded-xl bg-emerald-50 px-3 py-2 gap-2">
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-slate-700 truncate">{e.description}</p>
-                                <p className="text-[11px] text-slate-400">{formatDate(e.date)}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                                  <span>{formatDate(e.date)}</span>
+                                </div>
                                 <NotesList notes={e.notes} className="text-[11px]" />
                               </div>
                               <span className="text-xs font-bold text-emerald-600 flex-shrink-0">
