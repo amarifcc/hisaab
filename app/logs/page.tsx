@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Clock, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import type { ActivityLog, Json } from '@/lib/types'
 
@@ -63,7 +63,7 @@ function formatLogTime(value: string) {
     day: 'numeric', month: 'short',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Karachi',
-  })
+  }) + ' PKT'
 }
 function compactJson(value: Json | null) {
   if (!value) return ''
@@ -167,7 +167,7 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
     if (userId !== 'all')   sp.set('user',   userId)
     if (search)             sp.set('q',      search)
     if (unusualOnly)        sp.set('unusual','1')
-    if (p !== 'all')        sp.set('period', p)
+    sp.set('period', p)
     const q = sp.toString()
     return q ? `/logs?${q}` : '/logs'
   }
@@ -184,7 +184,8 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
   if (search)            query = query.or(`summary.ilike.%${search}%,entity_type.ilike.%${search}%`)
   if (unusualOnly)       query = query.not('entity_date', 'is', null)
 
-  const from = periodFrom(period)
+  // Unusual mode scans all time — backdated entries can be anywhere in history
+  const from = unusualOnly ? null : periodFrom(period)
   if (from) query = query.gte('performed_at', `${from}T00:00:00+05:00`)
 
   const { data } = await query
@@ -293,43 +294,53 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
           const unusual = isUnusual(log)
           const changes = compactJson(log.changes)
           return (
-            <div key={log.id} className="bg-white rounded-xl px-4 py-3 border border-slate-100">
-              {/* Line 1: who + when + entity id */}
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <p className="text-xs text-slate-400">
-                  {log.profiles?.name ?? 'Unknown'} · {formatLogTime(log.performed_at)}
-                </p>
-                {log.entity_id && (
-                  <span className="text-[10px] text-slate-300 font-mono flex-shrink-0">
-                    {log.entity_id.slice(0, 8)}
-                  </span>
-                )}
-              </div>
+            <div key={log.id} className="bg-white rounded-xl px-4 py-3.5 border border-slate-100">
 
-              {/* Line 2: action badge + entity type + unusual badge */}
-              <div className="flex items-center gap-2 mb-1">
-                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${color}`}>
-                  {log.action}
-                </span>
-                <span className="text-xs text-slate-500 capitalize">{formatEntity(log.entity_type)}</span>
+              {/* Row 1: action + entity (left) · unusual badge (right) */}
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${color}`}>
+                    {log.action}
+                  </span>
+                  <span className="text-xs text-slate-400 capitalize">{formatEntity(log.entity_type)}</span>
+                </div>
                 {unusual && (
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                  <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded flex-shrink-0">
                     <AlertTriangle className="w-3 h-3" />
                     backdated
                   </span>
                 )}
               </div>
 
-              {/* Line 3: summary */}
-              <p className="text-sm text-slate-800">{log.summary}</p>
+              {/* Row 2: who (left) · when (right) */}
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <User className="w-3 h-3 flex-shrink-0" />
+                  <span>{log.profiles?.name ?? 'Unknown'}</span>
+                </span>
+                <span className="flex items-center gap-1 text-xs text-slate-400">
+                  <Clock className="w-3 h-3 flex-shrink-0" />
+                  <span>{formatLogTime(log.performed_at)}</span>
+                </span>
+              </div>
+
+              {/* Row 3: summary */}
+              <p className="text-sm font-medium text-slate-800 mb-2">{log.summary}</p>
 
               {/* Change diff + raw JSON */}
               {log.action === 'UPDATE' && log.changes && (
-                <ChangeDiff changes={log.changes} />
+                <div className="mt-3">
+                  <ChangeDiff changes={log.changes} />
+                </div>
               )}
               {changes && (
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-xs font-medium text-slate-400">Raw JSON</summary>
+                  <summary className="cursor-pointer text-xs font-medium text-slate-400 flex items-center gap-2">
+                    <span>Raw JSON</span>
+                    {log.entity_id && (
+                      <span className="text-[10px] text-slate-300 font-mono">{log.entity_id.slice(0, 8)}</span>
+                    )}
+                  </summary>
                   <pre className="mt-2 max-h-48 overflow-auto rounded-xl bg-slate-50 p-3 text-[11px] text-slate-600 whitespace-pre-wrap">
                     {changes}
                   </pre>

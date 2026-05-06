@@ -235,7 +235,7 @@ export default async function VisitsPage({ searchParams }: { searchParams: Searc
     const sp = new URLSearchParams()
     if (userId !== 'all') sp.set('user', userId)
     if (path   !== 'all') sp.set('path', path)
-    if (p !== 'all') sp.set('period', p)
+    sp.set('period', p)
     const q = sp.toString()
     return q ? `/visits?${q}` : '/visits'
   }
