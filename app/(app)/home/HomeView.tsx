@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import { formatPKR, formatDate, cn } from '@/lib/utils'
 import { dealTotal, sortedDealRevisions } from '@/lib/deals'
 import { confirmTypedDelete } from '@/lib/confirm-delete'
-import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, Users, Tag, Layers, Handshake, ChevronDown, ChevronUp, Check, Pencil, Wallet, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound, List, Clock, Search, X, Trash2, SlidersHorizontal } from 'lucide-react'
+import { Plus, ReceiptText, ArrowDownToLine, ArrowDownLeft, Users, Tag, Layers, Handshake, ChevronDown, ChevronUp, Check, Pencil, TrendingDown, Scale, Flag, CheckCircle2, Clock3, Receipt, CalendarDays, UserRound, List, Clock, Search, X, Trash2, SlidersHorizontal } from 'lucide-react'
 import ExpenseSheet from '@/components/ExpenseSheet'
 import TransferSheet from '@/components/TransferSheet'
 import DealSheet from '@/components/DealSheet'
@@ -505,24 +505,6 @@ function RecentActivityChip({ label }: { label?: string | null }) {
     >
       {label}
     </span>
-  )
-}
-
-function MiniMetric({ icon: Icon, label, value, color, bg }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>
-  label: string
-  value: string
-  color: string
-  bg: string
-}) {
-  return (
-    <div className="min-w-0">
-      <div className={cn('w-7 h-7 rounded-xl flex items-center justify-center mb-1', bg)}>
-        <Icon size={14} className={color} />
-      </div>
-      <p className="text-[11px] text-slate-400">{label}</p>
-      <p className={cn('text-xs font-bold truncate', color)}>{value}</p>
-    </div>
   )
 }
 
@@ -1524,11 +1506,11 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
     return (
       <div className="space-y-2.5">
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="px-4 py-3.5" style={{ borderLeft: `4px solid ${selectedPart.color}` }}>
+          <div className="px-4 py-3" style={{ borderLeft: `3px solid ${selectedPart.color}` }}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs text-slate-400 font-medium">{selectedPart.name} Balance</p>
-                <p className={cn('text-2xl font-bold mt-1', balance < 0 ? 'text-red-500' : 'text-emerald-600')}>
+                <p className={cn('text-[26px] leading-tight font-bold mt-1', balance < 0 ? 'text-red-500' : 'text-emerald-600')}>
                   {balance < 0 ? '−' : ''}PKR {formatPKR(Math.abs(balance))}
                 </p>
                 <p className="text-xs text-slate-400 mt-0.5">{balance >= 0 ? 'remaining balance' : 'deficit'}</p>
@@ -1537,10 +1519,19 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
                 {selectedPart.short_name}
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-4">
-              <MiniMetric icon={Wallet} label="Received" value={`PKR ${formatPKR(deposited)}`} color="text-emerald-600" bg="bg-emerald-50" />
-              <MiniMetric icon={TrendingDown} label="Spent" value={`PKR ${formatPKR(spent)}`} color="text-rose-500" bg="bg-rose-50" />
-              <MiniMetric icon={Scale} label={balance < 0 ? 'Deficit' : 'Remaining'} value={`PKR ${formatPKR(Math.abs(balance))}`} color={balance < 0 ? 'text-red-500' : 'text-amber-600'} bg={balance < 0 ? 'bg-red-50' : 'bg-amber-50'} />
+            <div className="grid grid-cols-3 gap-2 mt-3 text-xs">
+              <div className="min-w-0">
+                <p className="text-slate-400">Received</p>
+                <p className="font-semibold text-emerald-600 truncate">PKR {formatPKR(deposited)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-slate-400">Spent</p>
+                <p className="font-semibold text-rose-500 truncate">PKR {formatPKR(spent)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-slate-400">{balance < 0 ? 'Deficit' : 'Remaining'}</p>
+                <p className={cn('font-semibold truncate', balance < 0 ? 'text-red-500' : 'text-amber-600')}>PKR {formatPKR(Math.abs(balance))}</p>
+              </div>
             </div>
           </div>
           {deposited > 0 && (
@@ -1557,19 +1548,19 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
-            <p className="text-xs text-slate-400 font-medium">Top Expense</p>
-            <p className="text-base leading-snug font-bold text-rose-500 mt-1 line-clamp-2 break-words">
+          <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
+            <p className="text-[11px] font-semibold text-slate-400">Top Expense</p>
+            <p className="text-sm leading-snug font-medium text-slate-700 mt-1 line-clamp-2 break-words">
               {topExpense ? topExpense.expense.description || topExpense.expense.categories?.name || 'Expense' : '-'}
             </p>
-            <p className="text-xs text-slate-400 mt-1">{topExpense ? `PKR ${formatPKR(topExpense.amount)}` : 'none'}</p>
+            <p className="text-xs font-semibold text-rose-400 mt-1">{topExpense ? `PKR ${formatPKR(topExpense.amount)}` : 'none'}</p>
           </div>
-          <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm min-w-0">
-            <p className="text-xs text-slate-400 font-medium">Top Deal</p>
-            <p className="text-base leading-snug font-bold text-blue-600 mt-1 line-clamp-2 break-words">
+          <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
+            <p className="text-[11px] font-semibold text-slate-400">Top Deal</p>
+            <p className="text-sm leading-snug font-medium text-slate-700 mt-1 line-clamp-2 break-words">
               {topDeal ? topDeal.name : '-'}
             </p>
-            <p className="text-xs text-slate-400 mt-1">{topDeal ? `PKR ${formatPKR(dealTotal(topDeal))}` : 'none'}</p>
+            <p className="text-xs font-semibold text-blue-500 mt-1">{topDeal ? `PKR ${formatPKR(dealTotal(topDeal))}` : 'none'}</p>
           </div>
         </div>
 
