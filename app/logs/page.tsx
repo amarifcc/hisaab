@@ -1,9 +1,19 @@
 export const dynamic = 'force-dynamic'
 
 import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { clearDateRangeHref, dateEnd, dateRangeHref, dateStart, quickDateRanges } from '@/lib/date-ranges'
 import type { ActivityLog, Json } from '@/lib/types'
+
+// Flag entries where the entity date is more than 48 h before it was logged
+function isUnusual(log: ActivityLog): boolean {
+  if (!log.entity_date) return false
+  if (!['CREATE', 'UPDATE'].includes(log.action)) return false
+  if (!['expense', 'transfer', 'deal'].includes(log.entity_type)) return false
+  const performed = new Date(log.performed_at).getTime()
+  const entity = new Date(log.entity_date).getTime()
+  return (performed - entity) > 48 * 60 * 60 * 1000
+}
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>
 type LogProfile = { name: string | null }
@@ -45,18 +55,21 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
   const params = await searchParams
   const supabase = await createClient()
 
+  // Supervisor-only guard
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return <div className="px-4 pt-5"><p className="text-sm text-slate-400">Login required.</p></div>
+  }
+  const { data: selfProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if ((selfProfile as { role?: string } | null)?.role !== 'supervisor') {
+    return <div className="px-4 pt-5"><p className="text-sm text-slate-400">Supervisor access required.</p></div>
+  }
+
   const action = param(params.action) ?? 'all'
   const entity = param(params.entity) ?? 'all'
   const userId = param(params.user) ?? 'all'
-  const from = param(params.from) ?? ''
-  const to = param(params.to) ?? ''
   const search = (param(params.q) ?? '').trim()
-  const quickParams = {
-    ...(search ? { q: search } : {}),
-    ...(action !== 'all' ? { action } : {}),
-    ...(entity !== 'all' ? { entity } : {}),
-    ...(userId !== 'all' ? { user: userId } : {}),
-  }
+  const unusualOnly = param(params.unusual) === '1'
 
   const { data: profiles } = await supabase.from('profiles').select('id, name, role').order('name')
 
@@ -69,12 +82,14 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
   if (ACTIONS.includes(action as (typeof ACTIONS)[number])) query = query.eq('action', action)
   if (ENTITIES.includes(entity as (typeof ENTITIES)[number])) query = query.eq('entity_type', entity)
   if (userId !== 'all') query = query.eq('performed_by', userId)
-  if (from) query = query.gte('performed_at', dateStart(from)!)
-  if (to) query = query.lte('performed_at', dateEnd(to)!)
   if (search) query = query.or(`summary.ilike.%${search}%,entity_type.ilike.%${search}%`)
+  // Unusual: entity_date exists and logged more than 2 days after entity date
+  if (unusualOnly) query = query.not('entity_date', 'is', null)
 
   const { data } = await query
-  const logs = (data ?? []) as LogRow[]
+  let logs = (data ?? []) as LogRow[]
+  // Client-side refinement: if unusual filter active, keep only flagged rows
+  if (unusualOnly) logs = logs.filter(isUnusual)
 
   const total = logs.length
   const creates = logs.filter(log => log.action === 'CREATE').length
@@ -86,7 +101,7 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Write Logs</h1>
-          <p className="text-xs text-slate-400">Create, update and delete audit trail</p>
+          <p className="text-xs text-slate-400">All time · create, update and delete audit trail</p>
         </div>
       </div>
 
@@ -95,68 +110,43 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
           name="q"
           defaultValue={search}
           placeholder="Search summary or entity"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white"
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white text-slate-900"
         />
-
         <div className="grid grid-cols-2 gap-2">
           <label className="space-y-1">
             <span className="text-[11px] font-medium text-slate-400">Action</span>
-            <select name="action" defaultValue={action} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white">
+            <select name="action" defaultValue={action} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white text-slate-900">
               <option value="all">All actions</option>
               {ACTIONS.map(item => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
           <label className="space-y-1">
             <span className="text-[11px] font-medium text-slate-400">Entity</span>
-            <select name="entity" defaultValue={entity} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white">
+            <select name="entity" defaultValue={entity} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white text-slate-900">
               <option value="all">All entities</option>
               {ENTITIES.map(item => <option key={item} value={item}>{formatEntity(item)}</option>)}
             </select>
           </label>
           <label className="space-y-1 col-span-2">
             <span className="text-[11px] font-medium text-slate-400">User</span>
-            <select name="user" defaultValue={userId} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white">
+            <select name="user" defaultValue={userId} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white text-slate-900">
               <option value="all">All users</option>
               {(profiles ?? []).map(profile => (
                 <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
             </select>
           </label>
-          <div className="col-span-2 space-y-1">
-            <span className="text-[11px] font-medium text-slate-400">Quick dates</span>
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {quickDateRanges().map(range => {
-                const active = from === range.from && to === range.to
-                return (
-                  <Link
-                    key={range.label}
-                    href={dateRangeHref('/logs', quickParams, range.from, range.to)}
-                    className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium ${active ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-500'}`}
-                  >
-                    {range.label}
-                  </Link>
-                )
-              })}
-              {(from || to) && (
-                <Link
-                  href={clearDateRangeHref('/logs', quickParams)}
-                  className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500"
-                >
-                  Clear
-                </Link>
-              )}
-            </div>
-          </div>
-          <label className="space-y-1">
-            <span className="text-[11px] font-medium text-slate-400">From</span>
-            <input name="from" type="date" defaultValue={from} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" />
-          </label>
-          <label className="space-y-1">
-            <span className="text-[11px] font-medium text-slate-400">To</span>
-            <input name="to" type="date" defaultValue={to} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm bg-white" />
-          </label>
         </div>
-
+        <label className="flex items-center gap-2.5 px-1 py-1 cursor-pointer">
+          <input
+            type="checkbox"
+            name="unusual"
+            value="1"
+            defaultChecked={unusualOnly}
+            className="w-4 h-4 rounded accent-amber-500"
+          />
+          <span className="text-sm text-slate-700">Unusual only <span className="text-slate-400 text-xs">(backdated &gt;48 h)</span></span>
+        </label>
         <div className="flex gap-2">
           <button type="submit" className="flex-1 rounded-xl bg-blue-700 text-white text-sm font-medium py-2">Apply</button>
           <Link href="/logs" className="rounded-xl border border-slate-200 text-slate-500 text-sm font-medium px-4 py-2">Reset</Link>
@@ -169,6 +159,12 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
         <LogMetric label="Edited" value={updates} />
         <LogMetric label="Deleted" value={deletes} />
       </div>
+
+      {total === 300 && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-3">
+          Showing 300 of more results — filter by action, entity or user to narrow down
+        </p>
+      )}
 
       {logs.length === 0 && (
         <p className="text-center text-slate-400 text-sm py-10">No matching write logs</p>
@@ -185,6 +181,12 @@ export default async function LogsPage({ searchParams }: { searchParams: SearchP
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${color}`}>{log.action}</span>
                     <span className="text-xs text-slate-500 capitalize">{formatEntity(log.entity_type)}</span>
+                    {isUnusual(log) && (
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded">
+                        <AlertTriangle className="w-3 h-3" />
+                        backdated
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-slate-800">{log.summary}</p>
                   <p className="text-xs text-slate-400 mt-0.5">

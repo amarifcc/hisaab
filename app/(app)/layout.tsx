@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import Sidebar from '@/components/Sidebar'
 import BottomNav from '@/components/BottomNav'
 import PageVisitTracker from '@/components/PageVisitTracker'
@@ -29,7 +30,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         userName={appProfile?.name ?? ''}
         userRole={role}
       />
-      <PageVisitTracker />
+      <Suspense fallback={null}>
+        <PageVisitTracker />
+      </Suspense>
       {/* Top header spacer */}
       <div className="h-12" />
       <main className="max-w-lg mx-auto pb-16">

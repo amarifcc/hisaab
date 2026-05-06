@@ -165,6 +165,7 @@ export interface Database {
           action: 'CREATE' | 'UPDATE' | 'DELETE'
           entity_type: 'transfer' | 'expense' | 'category' | 'project_part' | 'deal' | 'deal_revision'
           entity_id: string | null
+          entity_date: string | null
           summary: string
           changes: Json | null
           performed_by: string | null
@@ -175,6 +176,7 @@ export interface Database {
           action: 'CREATE' | 'UPDATE' | 'DELETE'
           entity_type: 'transfer' | 'expense' | 'category' | 'project_part' | 'deal' | 'deal_revision'
           entity_id?: string | null
+          entity_date?: string | null
           summary: string
           changes?: Json | null
           performed_by?: string | null
@@ -190,6 +192,7 @@ export interface Database {
           query: string | null
           referrer: string | null
           user_agent: string | null
+          country: string | null
           visited_at: string
         }
         Insert: {
@@ -199,6 +202,7 @@ export interface Database {
           query?: string | null
           referrer?: string | null
           user_agent?: string | null
+          country?: string | null
           visited_at?: string
         }
         Update: never

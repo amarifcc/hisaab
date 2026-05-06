@@ -19,15 +19,19 @@ export async function POST(req: Request) {
   }
 
   const userAgent = req.headers.get('user-agent')?.slice(0, 500) ?? null
+  const country = req.headers.get('x-vercel-ip-country') ?? null
+
   const { error } = await supabase.from('page_visits').insert({
     user_id: user.id,
     path,
     query,
     referrer,
     user_agent: userAgent,
+    country,
   })
 
   if (error) {
+    console.error('[page-visits] insert failed:', error.code, error.message, error.details)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

@@ -41,6 +41,7 @@ export async function POST(req: Request) {
 
   await supabase.from('activity_logs').insert({
     action: 'CREATE', entity_type: 'transfer', entity_id: data.id,
+    entity_date: data.date,
     summary: `Added transfer of PKR ${amount} for part`,
     performed_by: user.id,
   })
@@ -77,6 +78,7 @@ export async function PUT(req: Request) {
 
   await supabase.from('activity_logs').insert({
     action: 'UPDATE', entity_type: 'transfer', entity_id: id,
+    entity_date: date,
     summary: `Updated transfer of PKR ${amount}`,
     changes: { before, after: data },
     performed_by: user.id,
