@@ -1618,7 +1618,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
                 totalBalance < 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
               )}>
                 <Scale size={11} />
-                {totalBalance < 0 ? 'Deficit' : 'Healthy'}
+                {totalBalance < 0 ? 'Deficit' : 'Net positive'}
               </span>
               <p className="text-xs text-slate-400 mt-1">{activeParts} active part{activeParts !== 1 ? 's' : ''}</p>
             </div>
@@ -1633,12 +1633,6 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
             <span>PKR {formatPKR(totalSpent)} spent</span>
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <SummaryCard label="Transfers" value={String(transferCount)} sub="received" />
-        <SummaryCard label="Expenses" value={String(expenseCount)} sub="paid out" />
-        <SummaryCard label="Deals" value={String(deals.length)} sub="contracts" />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -1678,6 +1672,12 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <SummaryCard label="Transfers" value={String(transferCount)} sub="received" />
+        <SummaryCard label="Expenses" value={String(expenseCount)} sub="paid out" />
+        <SummaryCard label="Deals" value={String(deals.length)} sub="contracts" />
       </div>
     </div>
   )
