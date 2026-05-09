@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react'
 import { X, SplitSquareHorizontal } from 'lucide-react'
 import { cn, formatPKR, amountHint } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import PersonPicker from '@/components/PersonPicker'
 import NotesEditor from '@/components/NotesEditor'
 import type { ProjectPart, Category, ExpenseWithDetails } from '@/lib/types'
@@ -20,6 +21,12 @@ interface Props {
   editing?: ExpenseWithDetails | null
 }
 
+type DealContext = {
+  dealCount: number
+  agreedTotal: number
+  paidTotal: number
+} | null
+
 const today = () => new Date().toISOString().slice(0, 10)
 
 export default function ExpenseSheet({ open, onClose, onSaved, parts, categories, editing }: Props) {
@@ -34,9 +41,12 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [fe, setFe] = useState<Record<string, boolean>>({})
+  const [dealContext, setDealContext] = useState<DealContext>(null)
 
+  // Reset form on open/close
   useEffect(() => {
     if (!open) return
+    setDealContext(null)
     if (editing) {
       setTotalAmount(String(editing.total_amount))
       setCategoryId(editing.category_id ?? '')
@@ -66,6 +76,58 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
     setError('')
     setFe({})
   }, [editing, open, parts])
+
+  // Deal context lookup — fires when paidTo or singlePartId changes (single-part only)
+  useEffect(() => {
+    if (!paidTo.trim() || !singlePartId || isSplit) {
+      setDealContext(null)
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      const supabase = createClient()
+
+      // 1. Deals for this contractor + part
+      const { data: deals } = await supabase
+        .from('deals')
+        .select('agreed_amount')
+        .eq('person_name', paidTo.trim())
+        .eq('part_id', singlePartId)
+
+      if (!deals?.length) {
+        setDealContext(null)
+        return
+      }
+
+      const agreedTotal = deals.reduce((s, d) => s + Number(d.agreed_amount), 0)
+
+      // 2. All expense IDs for this contractor (excluding current if editing)
+      const { data: expenseRows } = await supabase
+        .from('expenses')
+        .select('id')
+        .eq('paid_to', paidTo.trim())
+
+      const expenseIds = (expenseRows ?? [])
+        .map(e => e.id)
+        .filter(id => id !== editing?.id)
+
+      // 3. Sum allocations for those expenses on this part
+      let paidTotal = 0
+      if (expenseIds.length > 0) {
+        const { data: allocs } = await supabase
+          .from('expense_allocations')
+          .select('amount')
+          .eq('part_id', singlePartId)
+          .in('expense_id', expenseIds)
+
+        paidTotal = (allocs ?? []).reduce((s, a) => s + Number(a.amount), 0)
+      }
+
+      setDealContext({ dealCount: deals.length, agreedTotal, paidTotal })
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [paidTo, singlePartId, isSplit, editing?.id])
 
   function handleSplitAmount(partId: string, value: string) {
     const updated = allocations.map(a => a.part_id === partId ? { ...a, amount: value } : a)
@@ -139,6 +201,10 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
   const isSalary = /salary/i.test(selectedCatName)
   const paidToType: 'employee' | Array<'contractor' | 'supplier'> = isSalary ? 'employee' : ['contractor', 'supplier']
 
+  // Projected totals for deal context strip
+  const projectedPaid = dealContext ? dealContext.paidTotal + (total || 0) : 0
+  const projectedRemaining = dealContext ? dealContext.agreedTotal - projectedPaid : 0
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
@@ -149,7 +215,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
         </div>
 
         <div className="space-y-4">
-          {/* 1. Floor allocation */}
+          {/* 1. Part allocation */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-500">Part Allocation *</label>
@@ -244,7 +310,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
             </div>
           </div>
 
-          {/* 3. Category (required) */}
+          {/* 3. Category */}
           <div>
             <label className="text-xs font-medium text-slate-500 mb-1 block">Category *</label>
             <div className="relative">
@@ -292,7 +358,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
             </div>
           </div>
 
-          {/* 4. Paid to */}
+          {/* 4. Paid to + deal context strip */}
           <div>
             <label className="text-xs font-medium text-slate-500 mb-1 block">
               Paid To * {isSalary && <span className="text-amber-500 font-normal">(Employee)</span>}
@@ -304,6 +370,38 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
               personType={paidToType}
               hasError={fe.paidTo}
             />
+
+            {/* Deal context strip */}
+            {dealContext && !isSplit && (
+              <div className="mt-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 space-y-1.5">
+                <p className="text-[11px] font-medium text-slate-400">
+                  {dealContext.dealCount === 1 ? '1 deal' : `${dealContext.dealCount} deals`} on record · this part
+                </p>
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs">
+                  <span className="text-slate-500">
+                    Agreed <span className="font-semibold text-slate-700">PKR {formatPKR(dealContext.agreedTotal)}</span>
+                  </span>
+                  <span className="text-slate-500">
+                    Paid <span className="font-semibold text-slate-700">PKR {formatPKR(dealContext.paidTotal)}</span>
+                  </span>
+                  <span className="text-slate-500">
+                    {dealContext.agreedTotal >= dealContext.paidTotal
+                      ? <>Remaining <span className="font-semibold text-emerald-600">PKR {formatPKR(dealContext.agreedTotal - dealContext.paidTotal)}</span></>
+                      : <>Overpaid <span className="font-semibold text-red-500">PKR {formatPKR(dealContext.paidTotal - dealContext.agreedTotal)}</span></>
+                    }
+                  </span>
+                </div>
+                {total > 0 && (
+                  <div className="pt-1.5 border-t border-slate-200 text-xs flex items-center gap-1.5">
+                    <span className="text-slate-400">After this payment:</span>
+                    {projectedRemaining >= 0
+                      ? <span className="font-medium text-slate-600">PKR {formatPKR(projectedRemaining)} remaining</span>
+                      : <span className="font-medium text-red-500">overpaid by PKR {formatPKR(-projectedRemaining)}</span>
+                    }
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 5. Notes */}

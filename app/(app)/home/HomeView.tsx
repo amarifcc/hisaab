@@ -1858,9 +1858,15 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
             return (
               <div key={group.partId} className={cn('px-4 py-3', groupIndex > 0 && 'border-t border-slate-100')}>
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {group.part && <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: group.part.color }}>{group.part.short_name}</span>}
-                    <span className="text-xs font-semibold text-slate-700 truncate">{group.part?.name ?? 'Part'}</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {group.part && <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ backgroundColor: group.part.color }}>{group.part.short_name}</span>}
+                      <span className="text-xs font-semibold text-slate-700 truncate">{group.part?.name ?? 'Part'}</span>
+                    </div>
+                    <div className="flex gap-2 mt-0.5 text-[11px]">
+                      <span className="text-slate-400">Agreed <span className="font-semibold text-slate-600">PKR {formatPKR(group.agreed)}</span></span>
+                      <span className="text-slate-400">Paid <span className="font-semibold text-emerald-600">PKR {formatPKR(group.paid)}</span></span>
+                    </div>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <div className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-semibold', groupStatus.chip)}>
@@ -1884,7 +1890,7 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                               {formatDate(d.date)}
                             </span>
                           </div>
-                          <NotesList notes={d.notes} className="text-[11px]" />
+                          {d.notes !== sortedDealRevisions(d)[0]?.notes && <NotesList notes={d.notes} className="text-[11px]" />}
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <span className="text-xs font-bold text-blue-600">PKR {formatPKR(dealTotal(d))}</span>
@@ -1907,7 +1913,7 @@ function DealPersonCard({ name, agreed, paid, remaining, groups, expenses, isSup
                         {sortedDealRevisions(d).map(revision => (
                           <div key={revision.id} className="flex items-start justify-between gap-2 text-xs">
                             <div className="min-w-0">
-                              <p className="text-slate-500 truncate">V{revision.revision_number} · {revision.scope_description}</p>
+                              <p className="text-slate-500 truncate">V{revision.revision_number}{revision.scope_description && revision.scope_description !== d.name ? ` · ${revision.scope_description}` : ''}</p>
                               <div className="flex items-center gap-1.5 flex-wrap text-slate-400">
                                 <span>{formatDate(revision.date)}</span>
                               </div>
