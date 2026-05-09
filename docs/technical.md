@@ -10,7 +10,7 @@
 | Styling | Tailwind CSS v4 |
 | Icons | Lucide React |
 | Share/Export | `html2canvas` + Web Share API |
-| Deployment | Vercel (assumed) |
+| Deployment | Vercel |
 
 ---
 
@@ -18,62 +18,77 @@
 
 ```
 app/
-  (auth)/login/         — Login page
-  (app)/                — Authenticated shell with bottom nav
-    page.tsx            — Redirects to /home
-    home/               — Main Home page; server fetches all data in page.tsx and renders HomeView.tsx
-    transfers/          — Redirects to /home
-    expenses/           — Redirects to /home
-    records/            — Redirects to /home
-    transactions/       — Redirects to /home
-    deals/              — Redirects to /home
-    reports/            — Redirects to /home
+  (auth)/login/              — Login page
+  (app)/                     — Authenticated shell with BottomNav + Sidebar
+    layout.tsx               — Wraps PageVisitTracker in <Suspense> — required
+    page.tsx                 — Redirects to /home
+    home/
+      page.tsx               — Server component: fetches all data, passes to HomeView
+      HomeView.tsx           — Client component: all four tabs + part filter
+    visits/
+      page.tsx               — Page Visits admin page (supervisor only, not in nav)
     settings/
-      categories/       — Category CRUD
-      parts/            — Project part CRUD
-      people/           — People/contacts CRUD
+      categories/            — Category CRUD
+      parts/                 — Project part CRUD
+      people/                — People/contacts CRUD
+    [legacy redirects]       — /transfers, /expenses, /deals, /records,
+                               /transactions, /reports all redirect to /home
+
+  logs/                      — Write Logs admin page (outside (app) group, no nav shell)
+    page.tsx                 — Supervisor-only audit trail
+
+  api/
+    expenses/route.ts        — POST / PUT / DELETE expenses + allocations
+    transfers/route.ts       — POST / PUT / DELETE transfers
+    deals/route.ts           — POST / PUT / DELETE deals + revisions (PATCH)
+    categories/route.ts      — Category CRUD
+    parts/route.ts           — Project part CRUD
+    people/route.ts          — People CRUD
+    page-visits/route.ts     — POST only: records a page view
 
 components/
-  Sidebar.tsx           — Bottom nav + slide-out drawer
-  TransferSheet.tsx     — Add/edit transfer bottom sheet
-  ExpenseSheet.tsx      — Add/edit expense bottom sheet
-  DealSheet.tsx         — Add/edit deal bottom sheet
+  BottomNav.tsx              — Mobile bottom navigation (Home, Cashbook, Settings)
+  Sidebar.tsx                — Slide-out drawer nav (same links as BottomNav)
+  PageVisitTracker.tsx       — Client component; fires POST /api/page-visits on nav
+  TransferSheet.tsx          — Add/edit transfer bottom sheet
+  ExpenseSheet.tsx           — Add/edit expense bottom sheet
+  DealSheet.tsx              — Add/edit deal bottom sheet
 
 lib/
-  types.ts              — All TypeScript interfaces
-  utils.ts              — formatPKR, formatDate, cn
+  types.ts                   — All TypeScript interfaces and Database type map
+  utils.ts                   — formatPKR, formatDate, cn
+  date-ranges.ts             — dateStart / dateEnd helpers (used by visits/logs queries)
   supabase/
-    client.ts           — Browser Supabase client
-    server.ts           — Server Supabase client (SSR cookies)
+    client.ts                — Browser Supabase client
+    server.ts                — Server Supabase client (SSR cookies)
 
-supabase/migrations/    — Sequential SQL migrations (run in Supabase SQL Editor)
+supabase/migrations/         — Sequential SQL migrations (manual: run in Supabase SQL Editor)
 
 docs/
-  product.md            — Product reference (features, flows, business logic)
-  technical.md          — This file
+  product.md                 — Product reference (features, flows, business logic)
+  technical.md               — This file
 ```
 
 ---
 
 ## Route Ownership
 
-`/home` is the primary finance workspace. `app/(app)/home/page.tsx` owns the
-server-side Supabase reads and passes the data into
-`app/(app)/home/HomeView.tsx`, which owns the visible tabs:
+`/home` is the primary finance workspace. `app/(app)/home/page.tsx` owns server-side Supabase reads and passes data into `app/(app)/home/HomeView.tsx`.
 
-| Visible tab | Implementation in `HomeView.tsx` |
-|-------------|-----------------------------------|
-| Overview | `PartsReport` |
-| Expenses → List | `ExpensesListReport` |
-| Expenses → Category | `CategoriesReport` |
-| Expenses → Person | `PeopleReport` |
-| Transfers | `TransfersListReport` |
-| Deals | `DealsReport` / `DealPersonCard` |
+| Visible tab / view | File |
+|-------------------|------|
+| Overview | `HomeView.tsx` → `PartsReport` |
+| Expenses → List | `HomeView.tsx` → `ExpensesListReport` |
+| Expenses → Category | `HomeView.tsx` → `CategoriesReport` |
+| Expenses → Person | `HomeView.tsx` → `PeopleReport` |
+| Transfers | `HomeView.tsx` → `TransfersListReport` |
+| Deals | `HomeView.tsx` → `DealsReport` / `DealPersonCard` |
+| Write Logs | `app/logs/page.tsx` (server, outside (app) group) |
+| Page Visits | `app/(app)/visits/page.tsx` (server) |
 
-Legacy route files for `/reports`, `/expenses`, `/transfers`, `/deals`,
-`/records`, and `/transactions` redirect to `/home`. When product requests
-mention those tabs as pages, update `HomeView.tsx` unless the request is about
-data loading in `home/page.tsx`.
+All legacy routes redirect to `/home`. When product requests mention those tabs as pages, update `HomeView.tsx` unless the request is about data loading in `home/page.tsx`.
+
+**Note on `/logs`:** It lives outside the `(app)` group on purpose — it does not show the bottom nav shell. The supervisor navigates there by typing the URL directly. It is still a server component with its own supervisor guard.
 
 ---
 
@@ -83,9 +98,9 @@ data loading in `home/page.tsx`.
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid PK | |
-| name | text | Full name, e.g. "Ground Floor" |
-| short_name | text | Compact label, e.g. "GF" |
-| color | text | Hex color, used throughout UI |
+| name | text | e.g. "Ground Floor" |
+| short_name | text | e.g. "GF" |
+| color | text | Hex color used throughout UI |
 | sort_order | int | Display order |
 
 ### `profiles`
@@ -106,6 +121,8 @@ Auto-created on signup via `handle_new_user()` trigger. Default role is `viewer`
 | amount | numeric | > 0 |
 | date | date | Occurrence date |
 | notes | text | |
+| ref_number | int | Auto-incrementing display reference |
+| created_by | uuid FK | |
 
 ### `expenses`
 | Column | Type | Notes |
@@ -113,28 +130,28 @@ Auto-created on signup via `handle_new_user()` trigger. Default role is `viewer`
 | id | uuid PK | |
 | description | text | |
 | total_amount | numeric | Sum of all allocations |
-| paid_to | text | Contractor/supplier name (soft link to `people.name`) |
-| category_id | uuid FK | References `categories` |
+| paid_to | text | Contractor/supplier name (soft FK to `people.name`) |
+| category_id | uuid FK | |
 | date | date | |
-
-Allocated to one or more parts via `expense_allocations`.
+| ref_number | int | Auto-incrementing display reference |
+| created_by | uuid FK | |
 
 ### `expense_allocations`
 | Column | Type | Notes |
 |--------|------|-------|
 | expense_id | uuid FK | Cascade delete |
 | part_id | uuid FK | |
-| amount | numeric | Per-part allocation amount |
+| amount | numeric | Per-part allocation |
 | UNIQUE | (expense_id, part_id) | |
 
 ### `deals`
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid PK | |
-| name | text | Description of the contracted work |
-| person_name | text | Contractor name (soft link to `people.name`) |
+| name | text | Description of contracted work |
+| person_name | text | Contractor name (soft FK to `people.name`) |
 | part_id | uuid FK | |
-| agreed_amount | numeric | Compatibility/current total; revision sum is source of truth when revisions exist |
+| agreed_amount | numeric | Running total; revision sum is source of truth |
 | date | date | |
 
 ### `deal_revisions`
@@ -144,85 +161,173 @@ Allocated to one or more parts via `expense_allocations`.
 | deal_id | uuid FK | Cascade delete with deal |
 | revision_number | int | Unique per deal |
 | scope_description | text | Original or changed scope |
-| amount_delta | numeric | Positive or negative agreed amount change |
+| amount_delta | numeric | Positive or negative |
 | date | date | |
-
-"Paid" amount is computed at query time from `expenses.paid_to` matching `person_name` for the relevant part. It is shown at contractor+part level, not allocated to individual deal rows.
 
 ### `people`
 | Column | Type | Notes |
 |--------|------|-------|
 | id | uuid PK | |
-| name | text UNIQUE | Used as soft FK in transfers and expenses |
+| name | text UNIQUE | Soft FK used in transfers and expenses |
 | person_type | text | `owner`, `contractor`, `employee`, `supplier` |
 | part_id | uuid FK nullable | Required for owners; used to auto-resolve transfer part |
 
 ### `categories`
-Standard lookup table: id, name, color.
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| name | text | |
+| color | text | |
+| parent_id | uuid FK nullable | For hierarchy |
+| is_group | boolean | Group-only category (cannot be assigned to expenses) |
+
+### `activity_logs`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| action | text | `CREATE`, `UPDATE`, `DELETE` |
+| entity_type | text | `expense`, `transfer`, `deal`, `deal_revision`, `category`, `project_part` |
+| entity_id | uuid nullable | ID of the affected row |
+| entity_date | date nullable | The transaction's own date field (e.g. expense.date). Used for backdating detection. |
+| summary | text | Human-readable one-liner |
+| changes | jsonb nullable | `{ before, after }` for UPDATE; `{ after }` for CREATE; `{ before }` for DELETE |
+| performed_by | uuid FK nullable | |
+| performed_at | timestamptz | Default: now() |
+
+**Backdating detection:** flag a log as unusual when `(performed_at − entity_date) > 48 hours` AND action is CREATE or UPDATE AND entity_type is expense, transfer, or deal. Implemented in `app/logs/page.tsx` as `isUnusual()`.
+
+### `page_visits`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| user_id | uuid FK | |
+| path | text | URL path, e.g. `/home` |
+| query | text nullable | Raw query string (without `?`) |
+| referrer | text nullable | |
+| user_agent | text nullable | Full UA string, parsed for display |
+| country | text nullable | ISO 3166-1 alpha-2 code from `x-vercel-ip-country` header. Only populated in Vercel production, always null on localhost. |
+| visited_at | timestamptz | Default: now() |
+
+---
+
+## Migrations
+
+Run each file in `supabase/migrations/` in numeric order via Supabase SQL Editor. Not managed by the Supabase CLI — manual execution only.
+
+| File | Purpose |
+|------|---------|
+| `001_initial_schema.sql` | Core tables: project_parts, profiles, categories, transfers, expenses, expense_allocations, activity_logs. All RLS policies. |
+| `002_people_table.sql` | `people` table for contacts autocomplete |
+| `003_fix_profiles_trigger.sql` | Fixes the auto-create profile trigger |
+| `004_people_type.sql` | Adds `person_type` to people |
+| `005_deals.sql` | `deals` table; extends activity_logs entity_type constraint |
+| `006_people_employee_type.sql` | Adds `employee` to person_type enum |
+| `007_owner_part.sql` | Adds `part_id` FK to people (required for transfer auto-resolution) |
+| `008_category_hierarchy.sql` | Category hierarchy support |
+| `009_category_is_group.sql` | Category group flag |
+| `010_reference_numbers.sql` | Transaction reference numbers |
+| `011_deal_revisions.sql` | Deal revision history; backfills existing deal totals |
+| `012_page_visits.sql` | `page_visits` table for analytics tracking |
+| `013_page_visits_country.sql` | Adds `country text` to `page_visits` |
+| `014_activity_logs_entity_date.sql` | Adds `entity_date date` to `activity_logs` |
+
+**After migration 014:** run the backfill SQL to populate `entity_date` on historical logs:
+```sql
+-- UPDATE logs: extract from changes JSON
+UPDATE activity_logs SET entity_date = (changes->'after'->>'date')::date
+WHERE action='UPDATE' AND entity_date IS NULL
+  AND entity_type IN ('expense','transfer','deal')
+  AND (changes->'after'->>'date') IS NOT NULL;
+
+UPDATE activity_logs SET entity_date = (changes->'before'->>'date')::date
+WHERE action='UPDATE' AND entity_date IS NULL
+  AND entity_type IN ('expense','transfer','deal')
+  AND (changes->'before'->>'date') IS NOT NULL;
+
+-- CREATE logs: join with entity tables
+UPDATE activity_logs al SET entity_date = e.date FROM expenses e
+WHERE al.entity_id = e.id AND al.action='CREATE' AND al.entity_type='expense' AND al.entity_date IS NULL;
+
+UPDATE activity_logs al SET entity_date = t.date FROM transfers t
+WHERE al.entity_id = t.id AND al.action='CREATE' AND al.entity_type='transfer' AND al.entity_date IS NULL;
+
+UPDATE activity_logs al SET entity_date = d.date FROM deals d
+WHERE al.entity_id = d.id AND al.action='CREATE' AND al.entity_type='deal' AND al.entity_date IS NULL;
+```
 
 ---
 
 ## API Routes
 
-All routes are in `app/api/`. Pattern: POST = create, PUT = update (body includes `id`), DELETE (body includes `id`).
+All routes are in `app/api/`. Pattern: POST = create, PUT = update (body includes `id`), DELETE (body includes `id`). PATCH on deals = add/edit a revision.
 
-All mutating routes check supervisor role:
+All mutating routes check supervisor role before any DB operation:
 ```typescript
 const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
 if ((profile as any)?.role !== 'supervisor') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 ```
 
-### Response contract for optimistic UI
-All POST and PUT routes return the fully enriched record (with joins) so the client can update local state without a page refresh:
-- `transfers`: returns `*, project_parts(*)`
-- `expenses`: re-fetches after insert/update: `*, categories(*), expense_allocations(*, project_parts(*))`
-- `deals`: returns `*, project_parts(*)`
-
-### Transfer part auto-resolution (`/api/transfers`)
-POST and PUT do NOT accept `part_id` from the client. Instead:
+### Activity log inserts
+Every mutating operation appends a row to `activity_logs`. Always include `entity_date` from the entity's own `date` field:
 ```typescript
-const { data: owner } = await supabase
-  .from('people')
-  .select('part_id')
-  .eq('name', from_person.trim())
-  .eq('person_type', 'owner')
-  .single()
+await supabase.from('activity_logs').insert({
+  action: 'CREATE', entity_type: 'expense', entity_id: expense.id,
+  entity_date: expense.date,   // ← required for backdating detection
+  summary: `Added expense "${description}" PKR ${total_amount}`,
+  performed_by: user.id,
+})
+```
+
+### Response contract (optimistic UI)
+POST and PUT return the fully enriched record (with joins) so the client can update local state without a page refresh:
+- `transfers` → `*, project_parts(*)`
+- `expenses` → re-fetched: `*, categories(*), expense_allocations(*, project_parts(*))`
+- `deals` → `*, project_parts(*), deal_revisions(*)`
+
+### Transfer part auto-resolution
+POST and PUT do NOT accept `part_id` from the client:
+```typescript
+const { data: owner } = await supabase.from('people').select('part_id')
+  .eq('name', from_person.trim()).eq('person_type', 'owner').single()
 if (!owner?.part_id) return NextResponse.json({ error: '...' }, { status: 400 })
 ```
 
-### Expense allocations
-On POST: insert expense, then insert one row per part into `expense_allocations`, then re-fetch with joins.
-On PUT: delete all existing allocations for the expense, re-insert, then re-fetch.
+### Page visits (`/api/page-visits`)
+POST only. Reads `user-agent` and `x-vercel-ip-country` from request headers:
+```typescript
+const userAgent = req.headers.get('user-agent')?.slice(0, 500) ?? null
+const country   = req.headers.get('x-vercel-ip-country') ?? null
+```
+`x-vercel-ip-country` is only present in Vercel production. Always null on localhost.
 
 ---
 
 ## Auth Pattern
 
-Server components and API routes use:
+Server components and API routes:
 ```typescript
 import { createClient } from '@/lib/supabase/server'
 const supabase = await createClient()
 const { data: { user } } = await supabase.auth.getUser()
 ```
 
-Role check shorthand (avoids TypeScript complaints):
+Role check shorthand:
 ```typescript
 const isSupervisor = (profile as any)?.role === 'supervisor'
 ```
 
-RLS policies enforce the same role check at the database level — the API check is defense-in-depth.
+RLS policies enforce the same check at the DB level — the API check is defense-in-depth.
 
 ---
 
 ## Client State Pattern (Optimistic UI)
 
-All list pages follow this pattern — **no `router.refresh()` after mutations**:
+No `router.refresh()` after mutations. All list pages follow:
 
 ```typescript
-// Initial data from server props
 const [items, setItems] = useState(initialItems)
 
-// After add: API returns enriched record
+// After add/edit — API returns enriched record
 function handleSaved(data: any) {
   if (editing) {
     setItems(prev => prev.map(x => x.id === data.id ? data : x))
@@ -231,7 +336,7 @@ function handleSaved(data: any) {
   }
 }
 
-// After delete: filter out locally
+// After delete
 async function handleDelete(id: string) {
   const res = await fetch('/api/...', { method: 'DELETE', body: JSON.stringify({ id }) })
   if (res.ok) setItems(prev => prev.filter(x => x.id !== id))
@@ -242,57 +347,62 @@ Sheets (`TransferSheet`, `ExpenseSheet`, `DealSheet`) accept `onSaved: (data: an
 
 ---
 
-## Part Filter Persistence
+## Page Visit Tracking
 
-Each page persists its part filter in localStorage:
+`PageVisitTracker` is a client component mounted in `app/(app)/layout.tsx`. It uses `useSearchParams()` which requires a `<Suspense>` boundary — **without this the component silently fails to mount and no visits are recorded**:
 
-| Page | Key |
-|------|-----|
-| Records / Transactions tab | `hisab_transactions_filter_part` |
-| Expenses | `hisab_expenses_filter_part` |
-| Transfers | `hisab_transfers_filter_part` |
-| Records / Deals tab | `hisab_deals_filter_part` |
-| Reports | `hisab_reports_filter_part` |
+```tsx
+// app/(app)/layout.tsx
+import { Suspense } from 'react'
+import PageVisitTracker from '@/components/PageVisitTracker'
 
-Pattern:
-```typescript
-const [filterPart, setFilterPart] = useState('all')
-useEffect(() => {
-  const saved = localStorage.getItem(KEY)
-  if (saved) setFilterPart(saved)
-}, [])
-function changeFilter(val: string) {
-  setFilterPart(val)
-  localStorage.setItem(KEY, val)
-}
+// Inside the layout:
+<Suspense fallback={null}>
+  <PageVisitTracker />
+</Suspense>
 ```
+
+On every route change it POSTs `{ path, query, referrer }` to `/api/page-visits`.
 
 ---
 
-## Migrations
+## Device Parsing (Visits Page)
 
-Run each file in `supabase/migrations/` in numeric order via Supabase SQL Editor. They are not managed by the Supabase CLI — manual execution only.
+`parseDevice(ua)` in `app/(app)/visits/page.tsx` extracts a friendly device label:
+- iPhone / iPad → as-is
+- Android → regex extracts model from Build string; brand detected from model prefix (SM- → Samsung, Pixel → Google, RMX → Realme, CPH → OPPO, etc.)
+- Desktop → Windows / Mac / Linux
 
-| File | Purpose |
-|------|---------|
-| `001_initial_schema.sql` | Core tables: project_parts, profiles, categories, transfers, expenses, expense_allocations, activity_logs. All RLS policies. |
-| `002_people_table.sql` | `people` table for contacts autocomplete |
-| `003_fix_profiles_trigger.sql` | Fixes the auto-create profile trigger |
-| `004_people_type.sql` | Adds `person_type` column to people |
-| `005_deals.sql` | `deals` table; extends activity_logs entity_type constraint |
-| `006_people_employee_type.sql` | Adds `employee` to person_type enum |
-| `007_owner_part.sql` | Adds `part_id` FK to people (required for transfer auto-resolution) |
-| `008_category_hierarchy.sql` | Adds category hierarchy support |
-| `009_category_is_group.sql` | Adds category group flag |
-| `010_reference_numbers.sql` | Adds transaction reference numbers |
-| `011_deal_revisions.sql` | Adds deal revision history and backfills existing deal totals |
+Returns `{ label: string; type: 'mobile' | 'desktop' }`. Type controls whether `Smartphone` (blue) or `Monitor` (grey) icon is shown.
 
-**Pending for existing owners**: After running 007, go to Settings → People and edit each owner to assign their project part. Until this is done, transfers cannot be recorded for those owners.
+---
+
+## Admin Pages — Period Filter Pattern
+
+Both `/logs` and `/visits` use the same period pill pattern: Today / Week (default) / Month / All time.
+
+Period pills are `<Link>` elements that encode the period in the URL (`?period=week`). The form has a `<input type="hidden" name="period" value={period} />` to preserve the period on form submit. The `periodHref()` helper always writes `period` to the URL (including for `all`) so clicking "All time" doesn't cause the pill to snap back to the default:
+
+```typescript
+function periodHref(p: Period) {
+  const sp = new URLSearchParams()
+  // ... other params ...
+  sp.set('period', p)  // always set — even for 'all'
+  return `/logs?${sp.toString()}`
+}
+```
+
+**Unusual filter + period interaction:** when the "Unusual only" checkbox is active, the period filter is bypassed entirely — backdated entries can be anywhere in history:
+```typescript
+const from = unusualOnly ? null : periodFrom(period)
+if (from) query = query.gte('performed_at', `${from}T00:00:00+05:00`)
+```
 
 ---
 
 ## PWA Configuration
 
-- `public/manifest.json` — app name "Hisaab", icons, display: standalone
+- `public/manifest.json` — app name "Hisaab", icons, `display: standalone`
 - `app/layout.tsx` — Apple web app meta tags (`apple-mobile-web-app-title: "Hisaab"`)
+- Installed PWA sends the same `User-Agent` as the underlying browser — device detection works correctly
 - `no-scrollbar` utility class used for horizontal chip/filter rows (defined in global CSS)
