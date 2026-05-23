@@ -81,14 +81,16 @@ Supervisor-only. Lists all login accounts (`profiles`) with their role and (for 
 
 ## Owner Module (`/owner`) — Owner role only
 
-Lives **inside the same app shell** as the supervisor (shared bottom nav + sidebar) — owners are not exiled. Their nav is role-tailored: **Home** and **Cashbook** (read-only views of the supervisor's work) plus **My Expenses** and **My Report** (their own). No Settings.
+The core app and landing page (`/home`) are **identical for every role** — the app stays supervisor-driven for all. The owner module is not a separate experience; it's an **extra sidebar entry** layered on top.
 
-| Page | Content |
-|------|---------|
-| **My Expenses** (`/owner`) | Total direct spend for the owner's part + list of their owner-source expenses, with add (FAB) / edit / delete. Add/edit uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
-| **My Report** (`/owner/report`) | Combined Report scoped to the owner's part: supervisor + owner spend with a source split and category breakdown. |
+An owner logs in, lands on `/home` (read-only — they can see what the supervisor is doing with the money they handed over), and gets two extra **sidebar** links:
 
-Supervisors/viewers visiting `/owner` are redirected to `/home` (it's owner-only). Owners writing is enforced by API stamping + RLS regardless of UI.
+| Sidebar link | Page | Content |
+|------|------|---------|
+| **My Expenses** | `/owner` | Total direct spend for the owner's part + list of their owner-source expenses, with add (FAB) / edit / delete. Uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
+| **Combined Report** | `/owner/report` | Combined Report scoped to the owner's part: supervisor + owner spend with a source split and category breakdown. |
+
+These appear only in the sidebar (never the bottom nav). Supervisors/viewers visiting `/owner` are redirected to `/home` (owner-only). Owner write access is enforced by API stamping + RLS regardless of UI.
 
 ---
 

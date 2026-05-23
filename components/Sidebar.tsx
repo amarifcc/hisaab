@@ -13,23 +13,8 @@ import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
 import CacheRefreshButton from '@/components/CacheRefreshButton'
 
-// Supervisor: full workspace + combined report (all parts).
-const supervisorNav = [
-  { href: '/home',             icon: House,    label: 'Home'            },
-  { href: '/cashbook',         icon: BookOpen, label: 'Cashbook'        },
-  { href: '/reports/combined', icon: PieChart, label: 'Combined Report' },
-]
-
-// Owner: views the supervisor app read-only (Home, Cashbook) + writes in their own module.
-const ownerNav = [
-  { href: '/home',         icon: House,    label: 'Home'        },
-  { href: '/cashbook',     icon: BookOpen, label: 'Cashbook'    },
-  { href: '/owner',        icon: Wallet,   label: 'My Expenses' },
-  { href: '/owner/report', icon: PieChart, label: 'My Report'   },
-]
-
-// Viewer: read-only view of the supervisor app.
-const viewerNav = [
+// Core nav — identical for every user (the app stays supervisor-driven for all).
+const mainNav = [
   { href: '/home',     icon: House,    label: 'Home'     },
   { href: '/cashbook', icon: BookOpen, label: 'Cashbook' },
 ]
@@ -52,8 +37,14 @@ export default function Sidebar({ userName, userRole }: Props) {
   const router = useRouter()
 
   const isSupervisor = userRole === 'supervisor'
-  const mainNav = userRole === 'owner' ? ownerNav : isSupervisor ? supervisorNav : viewerNav
+  const isOwner = userRole === 'owner'
   const isSettingsActive = pathname.startsWith('/settings')
+
+  // Sidebar-only extras layered on top of the core nav — not in the bottom nav.
+  const extraNav: { href: string; icon: typeof House; label: string }[] = []
+  if (isOwner) extraNav.push({ href: '/owner', icon: Wallet, label: 'My Expenses' })
+  if (isSupervisor) extraNav.push({ href: '/reports/combined', icon: PieChart, label: 'Combined Report' })
+  else if (isOwner) extraNav.push({ href: '/owner/report', icon: PieChart, label: 'Combined Report' })
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -125,8 +116,26 @@ export default function Sidebar({ userName, userRole }: Props) {
             )
           })}
 
-          {/* Settings section — supervisor only */}
-          {isSupervisor && (
+          {/* Extras — owner module + combined report (sidebar-only add-ons) */}
+          {extraNav.map(({ href, icon: Icon, label }) => {
+            const active = href === '/owner' ? pathname === '/owner' : (pathname === href || pathname.startsWith(href + '/'))
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  active ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
+                )}
+              >
+                <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+                {label}
+              </Link>
+            )
+          })}
+
+          {/* Settings section — visible to all (pages themselves guard supervisor-only actions) */}
           <div className="pt-2">
             <button
               onClick={() => setSettingsOpen(s => !s)}
@@ -168,7 +177,6 @@ export default function Sidebar({ userName, userRole }: Props) {
               </div>
             )}
           </div>
-          )}
         </nav>
 
         {/* Account footer */}

@@ -154,12 +154,12 @@ async function handleDelete(id: string) {
 
 ## Navigation rules
 
-- **`BottomNav.tsx` and `Sidebar.tsx` are role-aware** (they receive `role`):
-  - **Supervisor**: Home, Cashbook, Combined Report (sidebar), Settings.
-  - **Owner**: Home + Cashbook (read-only views) + My Expenses (`/owner`) + My Report (`/owner/report`). No Settings.
-  - **Viewer**: Home, Cashbook.
+- **The core app is identical for every role.** `BottomNav.tsx` shows the same 3 items for everyone — Home, Cashbook, Settings — and `/home` is the landing page for all users. Do not make the bottom nav or landing page role-divergent.
+- **The owner module and combined report are sidebar-only extras** (`Sidebar.tsx`, gated by `userRole`):
+  - **Owner** sees two extra sidebar links: **My Expenses** (`/owner`) and **Combined Report** (`/owner/report`, their part).
+  - **Supervisor** sees one extra sidebar link: **Combined Report** (`/reports/combined`, all parts).
+  - These never appear in the bottom nav.
 - **Do not add** `/logs` or `/visits` to navigation — they are intentionally URL-only admin pages
-- When adding a new user-facing page, add it to both `BottomNav.tsx` and `Sidebar.tsx` (in the correct role's nav array)
 - Owners are **not** redirected out of the supervisor shell — they share it read-only. `isSupervisor` (role === 'supervisor') gates write controls, so owners/viewers see the supervisor app without Add/edit/delete.
 
 ---
