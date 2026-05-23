@@ -1602,7 +1602,7 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <TopSlider title="Top Categories" items={topCategories} accentClass="text-rose-400" />
+          <TopSlider title="Top Expenses" items={topCategories} accentClass="text-rose-400" />
           <TopSlider title="Top Deals" items={topDeals} accentClass="text-blue-500" />
         </div>
 
