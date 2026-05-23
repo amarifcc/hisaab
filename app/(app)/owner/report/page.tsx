@@ -14,20 +14,21 @@ export default async function OwnerReportPage() {
   const p = profile as { role?: string; part_id?: string | null } | null
   if (p?.role !== 'owner' || !p.part_id) redirect('/home')
 
-  const [{ data: part }, { data: categories }, { data: expenses }] = await Promise.all([
-    supabase.from('project_parts').select('*').eq('id', p.part_id).single(),
+  const partId = p.part_id
+  const [{ data: part }, { data: categories }, { data: expenses }, { data: transfers }] = await Promise.all([
+    supabase.from('project_parts').select('*').eq('id', partId).single(),
     supabase.from('categories').select('*').order('name'),
     // Both sources, but only this owner's part — the merged view of their floor.
     supabase
       .from('expenses')
       .select('*, categories(*), expense_allocations(*, project_parts(*))')
       .order('date', { ascending: false }),
+    supabase.from('transfers').select('part_id, amount').eq('part_id', partId),
   ])
 
   if (!part) redirect('/home')
 
   // Keep only expenses that touch this part (supervisor multi-part + owner single-part).
-  const partId = p.part_id
   const scoped = ((expenses ?? []) as ExpenseWithDetails[]).filter(e =>
     (e.expense_allocations ?? []).some(a => a.part_id === partId)
   )
@@ -37,8 +38,9 @@ export default async function OwnerReportPage() {
       parts={[part as ProjectPart]}
       categories={(categories ?? []) as Category[]}
       expenses={scoped}
+      transfers={(transfers ?? []) as { part_id: string; amount: number }[]}
       title="Combined Report"
-      subtitle={`Supervisor + your spend on ${(part as ProjectPart).name}`}
+      subtitle={`True cost of ${(part as ProjectPart).name}`}
       ownerView
     />
   )
