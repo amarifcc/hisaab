@@ -21,7 +21,7 @@ This is **not** the Next.js you know from training data. APIs, conventions, and 
 | Home tab UI (Overview, Expenses, Transfers, Deals) | `app/(app)/home/HomeView.tsx` |
 | Home server data fetching / auth | `app/(app)/home/page.tsx` |
 | Owner module (owner role only) | `app/(app)/owner/page.tsx`, `app/(app)/owner/OwnerView.tsx` (shares the (app) shell) |
-| Combined report (supervisor + owner spend) | `components/CombinedReportView.tsx`; pages under `app/(app)/reports/combined/` & `app/(owner)/owner/report/` |
+| Joint Home (combined supervisor + owner spend) | `components/CombinedReportView.tsx` rendered by `app/(app)/joint/page.tsx`; legacy `/reports/combined` & `/owner/report` redirect to `/joint` |
 | App Users provisioning (promote to owner) | `app/(app)/settings/users/`, `app/api/admin/users/route.ts` |
 | Write Logs page | `app/logs/page.tsx` |
 | Page Visits page | `app/(app)/visits/page.tsx` |
@@ -155,9 +155,9 @@ async function handleDelete(id: string) {
 ## Navigation rules
 
 - **The core app is identical for every role.** `BottomNav.tsx` shows the same 3 items for everyone — Home, Cashbook, Settings — and `/home` is the landing page for all users. Do not make the bottom nav or landing page role-divergent.
-- **The owner module and combined report are sidebar-only extras** (`Sidebar.tsx`, gated by `userRole`):
-  - **Owner** sees two extra sidebar links: **My Expenses** (`/owner`) and **Combined Report** (`/owner/report`, their part).
-  - **Supervisor** sees one extra sidebar link: **Combined Report** (`/reports/combined`, all parts).
+- **The owner module and Joint Home are sidebar-only extras** (`Sidebar.tsx`, sectioned by `userRole`):
+  - **Owner** sees an **Owner** section (`/owner` — Owner Home) and a **Joint** section (`/joint` — Joint Home, defaults to their part).
+  - **Supervisor** sees a **Joint** section (`/joint` — Joint Home, all parts).
   - These never appear in the bottom nav.
 - **Do not add** `/logs` or `/visits` to navigation — they are intentionally URL-only admin pages
 - Owners are **not** redirected out of the supervisor shell — they share it read-only. `isSupervisor` (role === 'supervisor') gates write controls, so owners/viewers see the supervisor app without Add/edit/delete.

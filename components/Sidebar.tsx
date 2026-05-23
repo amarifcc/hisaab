@@ -13,13 +13,14 @@ import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
 import CacheRefreshButton from '@/components/CacheRefreshButton'
 
-// Core nav — identical for every user (the app stays supervisor-driven for all).
-const mainNav = [
-  { href: '/home',     icon: House,    label: 'Home'     },
+type NavItem = { href: string; icon: typeof House; label: string; exact?: boolean }
+
+const supervisorNav: NavItem[] = [
+  { href: '/home',     icon: House,    label: 'Home' },
   { href: '/cashbook', icon: BookOpen, label: 'Cashbook' },
 ]
 
-const settingsNav = [
+const settingsNav: NavItem[] = [
   { href: '/settings/parts',      icon: Layers, label: 'Project Parts' },
   { href: '/settings/categories', icon: Tag,    label: 'Categories'      },
   { href: '/settings/people',     icon: Users,  label: 'People'        },
@@ -40,11 +41,16 @@ export default function Sidebar({ userName, userRole }: Props) {
   const isOwner = userRole === 'owner'
   const isSettingsActive = pathname.startsWith('/settings')
 
-  // Sidebar-only extras layered on top of the core nav — not in the bottom nav.
-  const extraNav: { href: string; icon: typeof House; label: string }[] = []
-  if (isOwner) extraNav.push({ href: '/owner', icon: Wallet, label: 'My Expenses' })
-  if (isSupervisor) extraNav.push({ href: '/reports/combined', icon: PieChart, label: 'Combined Report' })
-  else if (isOwner) extraNav.push({ href: '/owner/report', icon: PieChart, label: 'Combined Report' })
+  const ownerNav: NavItem[] = isOwner
+    ? [{ href: '/owner', icon: Wallet, label: 'Home', exact: true }]
+    : []
+  const jointNav: NavItem[] = isSupervisor || isOwner
+    ? [{ href: '/joint', icon: PieChart, label: 'Home' }]
+    : []
+
+  function isActive(item: NavItem) {
+    return item.exact ? pathname === item.href : (pathname === item.href || pathname.startsWith(item.href + '/'))
+  }
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -96,47 +102,16 @@ export default function Sidebar({ userName, userRole }: Props) {
 
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
-          {mainNav.map(({ href, icon: Icon, label }) => {
-            const active = href === '/owner' ? pathname === '/owner' : (pathname === href || pathname.startsWith(href + '/'))
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                  active
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50'
-                )}
-              >
-                <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
-                {label}
-              </Link>
-            )
-          })}
-
-          {/* Extras — owner module + combined report (sidebar-only add-ons) */}
-          {extraNav.map(({ href, icon: Icon, label }) => {
-            const active = href === '/owner' ? pathname === '/owner' : (pathname === href || pathname.startsWith(href + '/'))
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                  active ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
-                )}
-              >
-                <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
-                {label}
-              </Link>
-            )
-          })}
+          <NavSection title="Supervisor" items={supervisorNav} isActive={isActive} onNavigate={() => setOpen(false)} />
+          {ownerNav.length > 0 && (
+            <NavSection title="Owner" items={ownerNav} isActive={isActive} onNavigate={() => setOpen(false)} />
+          )}
+          {jointNav.length > 0 && (
+            <NavSection title="Joint" items={jointNav} isActive={isActive} onNavigate={() => setOpen(false)} />
+          )}
 
           {/* Settings section — visible to all (pages themselves guard supervisor-only actions) */}
-          <div className="pt-2">
+          <div className="pt-3 mt-2 border-t border-slate-100">
             <button
               onClick={() => setSettingsOpen(s => !s)}
               className={cn(
@@ -196,5 +171,38 @@ export default function Sidebar({ userName, userRole }: Props) {
         </div>
       </aside>
     </>
+  )
+}
+
+function NavSection({ title, items, isActive, onNavigate }: {
+  title: string
+  items: NavItem[]
+  isActive: (item: NavItem) => boolean
+  onNavigate: () => void
+}) {
+  return (
+    <div className="pt-2 first:pt-0">
+      <p className="px-3 pb-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">{title}</p>
+      <div className="space-y-0.5">
+        {items.map(item => {
+          const active = isActive(item)
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                active ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
+              )}
+            >
+              <Icon size={18} strokeWidth={active ? 2.5 : 1.8} />
+              {item.label}
+            </Link>
+          )
+        })}
+      </div>
+    </div>
   )
 }

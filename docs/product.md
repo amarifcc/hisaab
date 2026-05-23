@@ -10,8 +10,8 @@ Hisaab is a private PWA for tracking renovation project finances. It is used by 
 
 | Role | Capabilities |
 |------|-------------|
-| **Supervisor** | Full CRUD on all data. The all-access superset. Sees Add buttons and edit/delete controls. Access to admin pages (`/logs`, `/visits`) and the Combined Report. |
-| **Owner** | **Read-only on the supervisor app** (Home, Cashbook — sees what the supervisor is doing with the money they handed over) **plus write access to their own module** (`/owner`): records expenses they paid **directly** (money that never passed through the supervisor), scoped to their own project part. Can add/edit/delete only their own owner-expenses. Cannot write supervisor data or open Settings. |
+| **Supervisor** | Full CRUD on supervisor-source data. Sees Add buttons and edit/delete controls in Supervisor Home. Access to admin pages (`/logs`, `/visits`) and view-only Joint Home. |
+| **Owner** | **Read-only on the supervisor app** (Home, Cashbook — sees what the supervisor is doing with the money they handed over) **plus write access to their own module** (`/owner`): records expenses they paid **directly** (money that never passed through the supervisor), scoped to their own project part. Can add/edit/delete only their own owner-expenses from Owner Home. Cannot write supervisor data or open Settings. |
 | **Viewer** | Read-only. Sees all supervisor data but no mutation controls. "Read only" badge shown on dashboard. |
 
 Roles are stored in `profiles.role` (`supervisor`, `owner`, or `viewer`). Every new signup gets `viewer` by default (zero access until promoted). Promote/assign via **Settings → App Users** (supervisor only), which sets the role and, for owners, their `profiles.part_id`. Supervisor is the superset — to give one person both supervisor and owner powers, make them a supervisor.
@@ -39,7 +39,7 @@ Money received by the supervisor from an owner for a specific part. The `part_id
 ### Expenses
 Money spent on the renovation. An expense has a total amount, a category, an optional `paid_to` (contractor/supplier name), and is allocated to one or more parts via `expense_allocations`. A multi-part purchase is shown as linked per-part rows with the same reference number.
 
-Every expense carries a `source`: `'supervisor'` (the default — money managed by the supervisor) or `'owner'` (money an owner paid directly). The supervisor workspace (`/home`, cashbook, deal paid-totals) only ever reads `source='supervisor'`; owner-source expenses live in the owner module and only surface together in the Combined Report. Owner expenses are always single-part (pinned to the owner's part).
+Every expense carries a `source`: `'supervisor'` (the default — money managed by the supervisor) or `'owner'` (money an owner paid directly). The supervisor workspace (`/home`, cashbook, deal paid-totals) only ever reads `source='supervisor'`; owner-source expenses live in the owner module and only surface together in Joint Home. Owner expenses are always single-part (pinned to the owner's part).
 
 ### Deals
 Agreed contracts with contractors. A deal records a piece of work and its revision history. The first revision is the original agreed scope; later revisions add or reduce scope with positive/negative amount deltas. Payments are computed from `expenses.paid_to` matching the deal's `person_name` for the relevant part, so paid/remaining is shown at contractor+part level.
@@ -51,8 +51,8 @@ A contacts list used for autocomplete on `from_person` (transfers) and `paid_to`
 
 ## Pages
 
-### Home (`/home`)
-The primary workspace. Contains four tabs sharing a global part filter:
+### Supervisor Home (`/home`)
+The supervisor-managed workspace. Owners/viewers can read it, but only supervisors can write. Contains four tabs sharing a global part filter:
 
 | Tab | Content |
 |-----|---------|
@@ -79,24 +79,37 @@ Supervisor-only. Lists all login accounts (`profiles`) with their role and (for 
 
 ---
 
+## Sidebar Sections
+
+The sidebar groups the app into three product areas:
+
+| Section | Link | Who sees it | Purpose |
+|------|------|------|------|
+| **Supervisor** | `/home`, `/cashbook` | All roles | Supervisor-managed money and records. Owners/viewers see this read-only. |
+| **Owner** | `/owner` | Owner only | Owner-direct expense entry and review for the owner's assigned part. |
+| **Joint** | `/joint` | Supervisor + owner | View-only combined supervisor + owner-direct spend. |
+| **Settings** | `/settings/...` | All roles in nav; pages guard access | Configuration and admin settings. |
+
+The bottom nav stays intentionally simple: Home, Cashbook, Settings. Owner and Joint are sidebar-only.
+
 ## Owner Module (`/owner`) — Owner role only
 
-The core app and landing page (`/home`) are **identical for every role** — the app stays supervisor-driven for all. The owner module is not a separate experience; it's an **extra sidebar entry** layered on top.
+The core app and landing page (`/home`) are **identical for every role** — the app stays supervisor-driven for all. The owner module is a dedicated sidebar section layered on top for owner-direct source data.
 
 An owner logs in, lands on `/home` (read-only — they can see what the supervisor is doing with the money they handed over), and gets two extra **sidebar** links:
 
 | Sidebar link | Page | Content |
 |------|------|---------|
-| **My Expenses** | `/owner` | Total direct spend for the owner's part + list of their owner-source expenses, with add (FAB) / edit / delete. Uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
-| **Combined Report** | `/owner/report` | Combined Report scoped to the owner's part: supervisor + owner spend with a source split and category breakdown. |
+| **Owner → Home** | `/owner` | Owner-direct expense home for the owner's part. Uses the Home-style UX: Overview / Expenses / Categories tabs, Add control, search/sort, expandable rows, and edit/delete. Uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
+| **Joint → Home** | `/joint` | View-only Joint Home across all parts: supervisor + owner spend with a source split, category breakdown, and combined expense list. Changes must be made in the source workspace (Supervisor Home or Owner Home). |
 
 These appear only in the sidebar (never the bottom nav). Supervisors/viewers visiting `/owner` are redirected to `/home` (owner-only). Owner write access is enforced by API stamping + RLS regardless of UI.
 
 ---
 
-## Combined Report (`/reports/combined`) — Supervisor
+## Joint Home (`/joint`) — Supervisor + Owner
 
-Standalone merged report (linked from the sidebar). Per project part: total spend = supervisor + owner, shown with a supervisor-vs-owner split bar and a category breakdown. Supervisor sees all parts; the owner-module version (`/owner/report`) shows only the owner's part. Does not touch or alter `/home`.
+Standalone merged workspace (linked from the sidebar). Per project part: total spend = supervisor + owner, shown with a supervisor-vs-owner split bar, category breakdown, and combined expense list. The report reuses the Home part filter, including the persisted All Parts/project-part selection. Joint Home is purely view/filter/drilldown mode: no add, edit, or delete controls for any role. Changes must be made at the source: supervisor-source rows in Supervisor Home and owner-source rows in Owner Home. Legacy `/reports/combined` and `/owner/report` URLs redirect to `/joint`.
 
 ---
 
@@ -146,4 +159,4 @@ Analytics view of all page views tracked across the app.
 
 **Backdated entry detection:** `activity_logs.entity_date` stores the transaction's own date (the date field on the expense/transfer/deal). At log time, this is compared to `performed_at`. If the gap exceeds 48 hours, the log is flagged as unusual. This catches cases where someone records a March expense in May. The `entity_date` column was backfilled for historical logs via SQL (UPDATE from `changes` JSON for UPDATEs, JOIN with entity tables for CREATEs).
 
-**Page visit tracking:** `PageVisitTracker` (client component) fires a POST to `/api/page-visits` on every navigation. It requires a `<Suspense>` boundary in the layout because it uses `useSearchParams()`. Without the boundary, the component doesn't mount properly in Next.js 14+ and visits are never recorded.
+**Page visit tracking:** `PageVisitTracker` (client component) fires a POST to `/api/page-visits` on every navigation. It requires a `<Suspense>` boundary in the layout because it uses `useSearchParams()`. Without the boundary, the component doesn't mount properly in Next.js 14+ and visits are never recorded. Legacy server redirects such as `/owner/report` and `/reports/combined` record their original path before redirecting to `/joint`.

@@ -146,6 +146,7 @@ export async function DELETE(req: Request) {
 
   await supabase.from('activity_logs').insert({
     action: 'DELETE', entity_type: 'expense', entity_id: id,
+    entity_date: before?.date,
     summary: `Deleted expense "${before?.description}" PKR ${before?.total_amount}`,
     changes: { before },
     performed_by: user.id,

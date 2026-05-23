@@ -33,11 +33,13 @@ app/
       people/                — People/contacts CRUD
       users/                 — App Users: promote viewer→owner + assign part (supervisor only)
     reports/
-      combined/              — Combined Report: per-part supervisor + owner spend (supervisor, all parts)
+      combined/              — Redirects to /joint
+    joint/
+      page.tsx               — Joint Home: view-only supervisor + owner spend
     owner/                   — Owner module (owner role only; shares the (app) shell)
-      page.tsx               — My Expenses: owner's own owner-source expenses (server) → OwnerView
-      OwnerView.tsx          — Client: list + FAB + ExpenseSheet (locked part, source='owner')
-      report/page.tsx        — My Report: Combined Report scoped to the owner's part
+      page.tsx               — Owner Home: owner's own owner-source expenses (server) → OwnerView
+      OwnerView.tsx          — Client: Overview / Expenses / Categories + ExpenseSheet (locked part, source='owner')
+      report/page.tsx        — Redirects to /joint
     [legacy redirects]       — /transfers, /expenses, /deals, /records,
                                /transactions, /reports all redirect to /home
 
@@ -56,8 +58,9 @@ app/
 
 components/
   BottomNav.tsx              — Mobile bottom navigation (Home, Cashbook, Settings)
-  Sidebar.tsx                — Slide-out drawer nav (same links as BottomNav)
+  Sidebar.tsx                — Sectioned drawer nav: Supervisor / Owner / Joint / Settings
   PageVisitTracker.tsx       — Client component; fires POST /api/page-visits on nav
+  page-visits.ts             — Server helper for visits that happen before client mount (redirect pages)
   TransferSheet.tsx          — Add/edit transfer bottom sheet
   ExpenseSheet.tsx           — Add/edit expense bottom sheet
   DealSheet.tsx              — Add/edit deal bottom sheet
@@ -81,7 +84,7 @@ docs/
 
 ## Route Ownership
 
-`/home` is the primary finance workspace. `app/(app)/home/page.tsx` owns server-side Supabase reads and passes data into `app/(app)/home/HomeView.tsx`.
+`/home` is Supervisor Home, the supervisor-managed finance workspace. `app/(app)/home/page.tsx` owns server-side Supabase reads and passes data into `app/(app)/home/HomeView.tsx`.
 
 | Visible tab / view | File |
 |-------------------|------|
@@ -91,6 +94,8 @@ docs/
 | Expenses → Person | `HomeView.tsx` → `PeopleReport` |
 | Transfers | `HomeView.tsx` → `TransfersListReport` |
 | Deals | `HomeView.tsx` → `DealsReport` / `DealPersonCard` |
+| Owner Home | `app/(app)/owner/page.tsx` → `OwnerView.tsx` |
+| Joint Home | `app/(app)/joint/page.tsx` → `components/CombinedReportView.tsx`; legacy `/reports/combined` and `/owner/report` redirect to `/joint` |
 | Write Logs | `app/logs/page.tsx` (server, outside (app) group) |
 | Page Visits | `app/(app)/visits/page.tsx` (server) |
 
@@ -383,6 +388,8 @@ import PageVisitTracker from '@/components/PageVisitTracker'
 ```
 
 On every route change it POSTs `{ path, query, referrer }` to `/api/page-visits`.
+
+Server-only redirect pages that may not mount the client tracker should call `recordServerPageVisit(path)` before `redirect()`. Current examples: legacy `/owner/report` and `/reports/combined` record their old path, then redirect to `/joint`.
 
 ---
 
