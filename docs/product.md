@@ -56,7 +56,7 @@ The supervisor-managed workspace. Owners/viewers can read it, but only superviso
 
 | Tab | Content |
 |-----|---------|
-| **Overview** | Balance, received/spent metrics, activity counts, top-spend part, part cards. Single-part: colored balance card + category breakdown. |
+| **Overview** | Balance, received/spent metrics, activity counts, top-spend part, part cards. Single-part: colored balance card + Top Expenses / Top Deals swipe sliders (top 3 each) + recent activity. |
 | **Expenses** | Sub-views: Category (spending breakdown with progress bars), Person (grouped by `paid_to`), List (flat sortable/searchable transaction list with edit/delete). |
 | **Transfers** | Sortable/searchable list of all transfers. Edit and delete inline. |
 | **Deals** | Per-contractor: agreed / paid / remaining. Expanded cards show contractor+part groups, individual deals, and revision timelines. |
