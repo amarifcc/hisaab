@@ -1494,12 +1494,23 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
       if (!top || dealTotal(deal) > dealTotal(top)) return deal
       return top
     }, null)
-    const topExpense = expenses.reduce<{ expense: ExpenseWithDetails; amount: number } | null>((top, expense) => {
-      const alloc = expense.expense_allocations.find(a => a.part_id === selectedPart.id)
-      const amount = Number(alloc?.amount ?? expense.total_amount)
-      if (!top || amount > top.amount) return { expense, amount }
+    const topCategory = (() => {
+      const totals = new Map<string, { name: string; amount: number }>()
+      for (const expense of expenses) {
+        const alloc = expense.expense_allocations.find(a => a.part_id === selectedPart.id)
+        const amount = Number(alloc?.amount ?? 0)
+        if (amount <= 0) continue
+        const name = expense.categories?.name ?? 'Uncategorized'
+        const cur = totals.get(name) ?? { name, amount: 0 }
+        cur.amount += amount
+        totals.set(name, cur)
+      }
+      let top: { name: string; amount: number } | null = null
+      for (const entry of totals.values()) {
+        if (!top || entry.amount > top.amount) top = entry
+      }
       return top
-    }, null)
+    })()
     const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
     const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
 
@@ -1549,11 +1560,11 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
 
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
-            <p className="text-[11px] font-semibold text-slate-400">Top Expense</p>
+            <p className="text-[11px] font-semibold text-slate-400">Top Category</p>
             <p className="text-sm leading-snug font-medium text-slate-700 mt-1 line-clamp-2 break-words">
-              {topExpense ? topExpense.expense.description || topExpense.expense.categories?.name || 'Expense' : '-'}
+              {topCategory ? topCategory.name : '-'}
             </p>
-            <p className="text-xs font-semibold text-rose-400 mt-1">{topExpense ? `PKR ${formatPKR(topExpense.amount)}` : 'none'}</p>
+            <p className="text-xs font-semibold text-rose-400 mt-1">{topCategory ? `PKR ${formatPKR(topCategory.amount)}` : 'none'}</p>
           </div>
           <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
             <p className="text-[11px] font-semibold text-slate-400">Top Deal</p>
