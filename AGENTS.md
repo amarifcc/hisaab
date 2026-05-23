@@ -75,7 +75,7 @@ The country header is injected by Vercel's edge network. It is always null on lo
 When joining `activity_logs` with entity tables in SQL, use `al.entity_id = e.id` directly — no `::text` cast needed. Postgres will error if you add one.
 
 ### 11. Supervisor screens must filter `source='supervisor'`
-`expenses` now has a `source` column. Any supervisor-facing read of `expenses` (home, cashbook, deal paid-totals, deal-context lookups) MUST add `.eq('source', 'supervisor')`, or owner-direct expenses will leak into the supervisor workspace and inflate balances/deal payments. The owner module reads `source='owner'`; the Combined Report reads both.
+`expenses` now has a `source` column. Any supervisor-facing read of `expenses` (home, cashbook, deal paid-totals, deal-context lookups) MUST add `.eq('source', 'supervisor')`, or owner-direct expenses will leak into the supervisor workspace and inflate balances/deal payments. The owner module reads `source='owner'`; Joint Home (`/joint`) reads both.
 
 ### 12. Never trust client-supplied `source`/`part_id` for owner writes
 In `/api/expenses`, owner-role requests are server-stamped: `source='owner'`, `created_by=user.id`, and a single allocation pinned to `profiles.part_id`. Do not pass these through from the request body. RLS (migration 017) enforces the same — don't weaken it.

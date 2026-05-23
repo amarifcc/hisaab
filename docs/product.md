@@ -101,7 +101,7 @@ An owner logs in, lands on `/home` (read-only — they can see what the supervis
 | Sidebar link | Page | Content |
 |------|------|---------|
 | **Owner → Home** | `/owner` | Owner-direct expense home for the owner's part. Uses the Home-style UX: Overview / Expenses / Categories tabs, Add control, search/sort, expandable rows, and edit/delete. Uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
-| **Joint → Home** | `/joint` | View-only Joint Home across all parts: supervisor + owner spend with a source split, category breakdown, and combined expense list. Changes must be made in the source workspace (Supervisor Home or Owner Home). |
+| **Joint → Home** | `/joint` | View-only Joint Home (Overview / Expenses / Categories tabs, with part + source filters): combined supervisor + owner spend. Changes must be made in the source workspace (Supervisor Home or Owner Home). |
 
 These appear only in the sidebar (never the bottom nav). Supervisors/viewers visiting `/owner` are redirected to `/home` (owner-only). Owner write access is enforced by API stamping + RLS regardless of UI.
 
@@ -109,7 +109,19 @@ These appear only in the sidebar (never the bottom nav). Supervisors/viewers vis
 
 ## Joint Home (`/joint`) — Supervisor + Owner
 
-Standalone merged workspace (linked from the sidebar). Per project part: total spend = supervisor + owner, shown with a supervisor-vs-owner split bar, category breakdown, and combined expense list. The report reuses the Home part filter, including the persisted All Parts/project-part selection. Joint Home is purely view/filter/drilldown mode: no add, edit, or delete controls for any role. Changes must be made at the source: supervisor-source rows in Supervisor Home and owner-source rows in Owner Home. Legacy `/reports/combined` and `/owner/report` URLs redirect to `/joint`.
+Standalone view-only workspace (sidebar → Joint) that merges supervisor-managed and owner-direct spend. The header has two filters:
+- **Part filter** — reuses the persisted Home selection (`hisab_reports_filter_part`): All Parts or a single part.
+- **Source filter** — Both / Supervisor / Owner-direct.
+
+Three tabs sit below the filters:
+
+| Tab | Content |
+|-----|---------|
+| **Overview** | Total cost (supervisor + owner) with a funding split meter (supervisor = rose, owner-direct = amber), funding status (received via transfers vs balance still with the supervisor), and a by-part breakdown when viewing All Parts. |
+| **Expenses** | Combined, searchable/sortable expense list with category + person multi-select filters and source badges; tap a row to expand details. |
+| **Categories** | Combined spend per category with expandable transaction drill-down. |
+
+Joint Home is purely view/filter/drilldown — **no add, edit, or delete for any role**. Changes are made at the source: supervisor-source rows in Supervisor Home, owner-source rows in Owner Home. For an **owner** it defaults to their own part but they can switch the part filter to view any part read-only. Legacy `/reports/combined` and `/owner/report` URLs redirect to `/joint`.
 
 ---
 
