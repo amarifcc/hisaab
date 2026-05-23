@@ -20,6 +20,9 @@ This is **not** the Next.js you know from training data. APIs, conventions, and 
 |------|---------------|
 | Home tab UI (Overview, Expenses, Transfers, Deals) | `app/(app)/home/HomeView.tsx` |
 | Home server data fetching / auth | `app/(app)/home/page.tsx` |
+| Owner module (owner role only) | `app/(owner)/owner/page.tsx`, `OwnerView.tsx`, `components/OwnerShell.tsx` |
+| Combined report (supervisor + owner spend) | `components/CombinedReportView.tsx`; pages under `app/(app)/reports/combined/` & `app/(owner)/owner/report/` |
+| App Users provisioning (promote to owner) | `app/(app)/settings/users/`, `app/api/admin/users/route.ts` |
 | Write Logs page | `app/logs/page.tsx` |
 | Page Visits page | `app/(app)/visits/page.tsx` |
 | Add/edit transfer sheet | `components/TransferSheet.tsx` |
@@ -70,6 +73,15 @@ The country header is injected by Vercel's edge network. It is always null on lo
 
 ### 10. `entity_id` is a `uuid` column, not `text`
 When joining `activity_logs` with entity tables in SQL, use `al.entity_id = e.id` directly — no `::text` cast needed. Postgres will error if you add one.
+
+### 11. Supervisor screens must filter `source='supervisor'`
+`expenses` now has a `source` column. Any supervisor-facing read of `expenses` (home, cashbook, deal paid-totals, deal-context lookups) MUST add `.eq('source', 'supervisor')`, or owner-direct expenses will leak into the supervisor workspace and inflate balances/deal payments. The owner module reads `source='owner'`; the Combined Report reads both.
+
+### 12. Never trust client-supplied `source`/`part_id` for owner writes
+In `/api/expenses`, owner-role requests are server-stamped: `source='owner'`, `created_by=user.id`, and a single allocation pinned to `profiles.part_id`. Do not pass these through from the request body. RLS (migration 017) enforces the same — don't weaken it.
+
+### 13. Owners are scoped by `profiles.part_id`, not the `people` table
+The owner→part link for login accounts lives on `profiles.part_id` (with a CHECK that owners must have one). This is separate from `people.part_id` (which is for transfer auto-resolution). Don't conflate them.
 
 ---
 

@@ -20,7 +20,7 @@ export default async function HomePage() {
   const [{ data: parts }, { data: transfers }, { data: expenses }, { data: categories }, { data: dealsWithRevisions, error: dealsWithRevisionsError }] = await Promise.all([
     supabase.from('project_parts').select('*').order('sort_order'),
     supabase.from('transfers').select('*, project_parts(*)').order('date', { ascending: false }),
-    supabase.from('expenses').select('*, categories(*), expense_allocations(*, project_parts(*))').order('date', { ascending: false }),
+    supabase.from('expenses').select('*, categories(*), expense_allocations(*, project_parts(*))').eq('source', 'supervisor').order('date', { ascending: false }),
     supabase.from('categories').select('*').order('name'),
     supabase.from('deals').select('*, project_parts(*), deal_revisions(*)').order('date', { ascending: false }),
   ])

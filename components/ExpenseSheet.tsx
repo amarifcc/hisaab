@@ -19,6 +19,12 @@ interface Props {
   parts: ProjectPart[]
   categories: Category[]
   editing?: ExpenseWithDetails | null
+  /** When set, force single-part allocation to this part and hide the split toggle + part picker. */
+  lockedPartId?: string
+  /** Stamped into the create/update body. Defaults to 'supervisor'. */
+  source?: 'supervisor' | 'owner'
+  /** Hide the supervisor-only deal-context strip (and skip its lookup). */
+  hideDealContext?: boolean
 }
 
 type DealContext = {
@@ -29,7 +35,7 @@ type DealContext = {
 
 const today = () => new Date().toISOString().slice(0, 10)
 
-export default function ExpenseSheet({ open, onClose, onSaved, parts, categories, editing }: Props) {
+export default function ExpenseSheet({ open, onClose, onSaved, parts, categories, editing, lockedPartId, source = 'supervisor', hideDealContext = false }: Props) {
   const [totalAmount, setTotalAmount] = useState('')
   const [categoryId, setCategoryId] = useState<string>('')
   const [paidTo, setPaidTo] = useState('')
@@ -54,7 +60,12 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
       setDate(editing.date)
       setNotes(editing.notes ?? '')
       const allocs = editing.expense_allocations ?? []
-      if (allocs.length === 1) {
+      if (lockedPartId) {
+        // Owner expenses are always single-part, pinned to the locked part.
+        setIsSplit(false)
+        setSinglePartId(lockedPartId)
+        setAllocations([{ part_id: lockedPartId, amount: String(editing.total_amount) }])
+      } else if (allocs.length === 1) {
         setIsSplit(false)
         setSinglePartId(allocs[0].part_id)
         setAllocations([{ part_id: allocs[0].part_id, amount: String(allocs[0].amount) }])
@@ -70,16 +81,16 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
       setDate(today())
       setNotes('')
       setIsSplit(false)
-      setSinglePartId('')
-      setAllocations(parts.map(p => ({ part_id: p.id, amount: '' })))
+      setSinglePartId(lockedPartId ?? '')
+      setAllocations(lockedPartId ? [{ part_id: lockedPartId, amount: '' }] : parts.map(p => ({ part_id: p.id, amount: '' })))
     }
     setError('')
     setFe({})
-  }, [editing, open, parts])
+  }, [editing, open, parts, lockedPartId])
 
   // Deal context lookup — fires when paidTo or singlePartId changes (single-part only)
   useEffect(() => {
-    if (!paidTo.trim() || !singlePartId || isSplit) {
+    if (hideDealContext || !paidTo.trim() || !singlePartId || isSplit) {
       setDealContext(null)
       return
     }
@@ -101,11 +112,12 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
 
       const agreedTotal = deals.reduce((s, d) => s + Number(d.agreed_amount), 0)
 
-      // 2. All expense IDs for this contractor (excluding current if editing)
+      // 2. All supervisor expense IDs for this contractor (excluding current if editing)
       const { data: expenseRows } = await supabase
         .from('expenses')
         .select('id')
         .eq('paid_to', paidTo.trim())
+        .eq('source', 'supervisor')
 
       const expenseIds = (expenseRows ?? [])
         .map(e => e.id)
@@ -127,7 +139,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
     }, 400)
 
     return () => clearTimeout(timer)
-  }, [paidTo, singlePartId, isSplit, editing?.id])
+  }, [paidTo, singlePartId, isSplit, editing?.id, hideDealContext])
 
   function handleSplitAmount(partId: string, value: string) {
     const updated = allocations.map(a => a.part_id === partId ? { ...a, amount: value } : a)
@@ -180,8 +192,8 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
     setLoading(true)
     const method = editing ? 'PUT' : 'POST'
     const body = editing
-      ? { id: editing.id, description: finalDescription, total_amount: total, paid_to: paidTo, category_id: categoryId, date, notes, allocations: allocs }
-      : { description: finalDescription, total_amount: total, paid_to: paidTo, category_id: categoryId, date, notes, allocations: allocs }
+      ? { id: editing.id, description: finalDescription, total_amount: total, paid_to: paidTo, category_id: categoryId, date, notes, allocations: allocs, source }
+      : { description: finalDescription, total_amount: total, paid_to: paidTo, category_id: categoryId, date, notes, allocations: allocs, source }
 
     const res = await fetch('/api/expenses', { method, body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
     setLoading(false)
@@ -215,7 +227,8 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
         </div>
 
         <div className="space-y-4">
-          {/* 1. Part allocation */}
+          {/* 1. Part allocation — hidden when locked to a single part (owner module) */}
+          {!lockedPartId && (
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-slate-500">Part Allocation *</label>
@@ -287,6 +300,7 @@ export default function ExpenseSheet({ open, onClose, onSaved, parts, categories
               </div>
             )}
           </div>
+          )}
 
           {/* 2. Amount */}
           <div>

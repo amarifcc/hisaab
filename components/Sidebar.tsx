@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Menu, X,
-  House, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, BookOpen
+  House, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, BookOpen, PieChart
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -14,8 +14,9 @@ import ThemeToggle from '@/components/ThemeToggle'
 import CacheRefreshButton from '@/components/CacheRefreshButton'
 
 const mainNav = [
-  { href: '/home',      icon: House,       label: 'Home'     },
-  { href: '/cashbook',  icon: BookOpen,    label: 'Cashbook' },
+  { href: '/home',             icon: House,    label: 'Home'            },
+  { href: '/cashbook',         icon: BookOpen, label: 'Cashbook'        },
+  { href: '/reports/combined', icon: PieChart, label: 'Combined Report' },
 ]
 
 const settingsNav = [

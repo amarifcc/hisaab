@@ -31,8 +31,18 @@ app/
       categories/            — Category CRUD
       parts/                 — Project part CRUD
       people/                — People/contacts CRUD
+      users/                 — App Users: promote viewer→owner + assign part (supervisor only)
+    reports/
+      combined/              — Combined Report: per-part supervisor + owner spend (supervisor, all parts)
     [legacy redirects]       — /transfers, /expenses, /deals, /records,
                                /transactions, /reports all redirect to /home
+
+  (owner)/                   — Standalone owner shell (owner role only; OwnerShell, not (app) nav)
+    layout.tsx               — Guards role='owner', redirects others to /
+    owner/
+      page.tsx               — My Expenses: owner's own owner-source expenses (server) → OwnerView
+      OwnerView.tsx          — Client: list + FAB + ExpenseSheet (locked part, source='owner')
+      report/page.tsx        — Combined Report scoped to the owner's part
 
   logs/                      — Write Logs admin page (outside (app) group, no nav shell)
     page.tsx                 — Supervisor-only audit trail
@@ -45,6 +55,7 @@ app/
     parts/route.ts           — Project part CRUD
     people/route.ts          — People CRUD
     page-visits/route.ts     — POST only: records a page view
+    admin/users/route.ts     — GET/PUT profiles: supervisor sets role + part_id (owner provisioning)
 
 components/
   BottomNav.tsx              — Mobile bottom navigation (Home, Cashbook, Settings)
@@ -108,9 +119,10 @@ All legacy routes redirect to `/home`. When product requests mention those tabs 
 |--------|------|-------|
 | id | uuid PK | References `auth.users` |
 | name | text | |
-| role | text | `'supervisor'` or `'viewer'` |
+| role | text | `'supervisor'`, `'owner'`, or `'viewer'` |
+| part_id | uuid FK nullable | Owner's assigned part. CHECK: required when role=`owner`, must be null otherwise. `on delete restrict`. |
 
-Auto-created on signup via `handle_new_user()` trigger. Default role is `viewer`.
+Auto-created on signup via `handle_new_user()` trigger. Default role is `viewer`. Promoted to `owner`/`supervisor` via Settings → App Users (or SQL).
 
 ### `transfers`
 | Column | Type | Notes |
@@ -134,6 +146,7 @@ Auto-created on signup via `handle_new_user()` trigger. Default role is `viewer`
 | category_id | uuid FK | |
 | date | date | |
 | ref_number | int | Auto-incrementing display reference |
+| source | text | `'supervisor'` (default) or `'owner'`. Supervisor screens filter `source='supervisor'`; owner module reads `source='owner'`. |
 | created_by | uuid FK | |
 
 ### `expense_allocations`
@@ -230,6 +243,9 @@ Run each file in `supabase/migrations/` in numeric order via Supabase SQL Editor
 | `012_page_visits.sql` | `page_visits` table for analytics tracking |
 | `013_page_visits_country.sql` | Adds `country text` to `page_visits` |
 | `014_activity_logs_entity_date.sql` | Adds `entity_date date` to `activity_logs` |
+| `015_owner_role_and_part.sql` | Adds `'owner'` role; adds `profiles.part_id` FK (owner→part, `on delete restrict`); CHECK enforces owner⇒part set, non-owner⇒null |
+| `016_expense_source.sql` | Adds `expenses.source` (`'supervisor'`\|`'owner'`, default `'supervisor'`); backfills existing rows |
+| `017_owner_rls.sql` | `is_supervisor()` / `owner_part_id()` SQL helpers; owner write RLS on expenses + allocations (own owner-source rows, pinned to own part); supervisor-can-update-any-profile policy |
 
 **After migration 014:** run the backfill SQL to populate `entity_date` on historical logs:
 ```sql
@@ -266,6 +282,13 @@ All mutating routes check supervisor role before any DB operation:
 const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
 if ((profile as any)?.role !== 'supervisor') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 ```
+
+### Owner expense writes (`/api/expenses`)
+`/api/expenses` is the one mutating route that also accepts the `owner` role. It uses `getActor()` (returns `{ role, part_id }`) and branches:
+- **Supervisor**: stamps `source='supervisor'`, accepts client `allocations` as-is (single or split).
+- **Owner**: the server **always** stamps `source='owner'`, `created_by=user.id`, and **constructs** a single allocation `[{ part_id: profile.part_id, amount: total_amount }]` — the client's `source`/`allocations`/`part_id` are ignored. PUT/DELETE additionally require the target row to be `source='owner'` AND `created_by=me`.
+
+RLS is the real wall (the route uses the user's RLS-bound client). Owner policies (migration 017) block forging a supervisor expense or writing to another part even if the API branch is bypassed. SELECT stays open (`using(true)`) — owner view scoping is done in the app layer (owner pages only query their own part/rows).
 
 ### Activity log inserts
 Every mutating operation appends a row to `activity_logs`. Always include `entity_date` from the entity's own `date` field:

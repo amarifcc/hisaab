@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Layers, Tag, Users, ChevronRight } from 'lucide-react'
+import { Layers, Tag, Users, UserCog, ChevronRight } from 'lucide-react'
 
 type RoleProfile = { role?: string | null }
 
@@ -72,6 +72,21 @@ export default async function SettingsPage() {
             <div>
               <p className="text-sm font-semibold text-slate-900">People</p>
               <p className="text-xs text-slate-400">Names used in transfers &amp; expenses</p>
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-slate-300" />
+        </Link>
+        <Link
+          href="/settings/users"
+          className="flex items-center justify-between bg-white rounded-2xl px-4 py-4 border border-slate-100 shadow-sm active:bg-slate-50"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+              <UserCog size={20} className="text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">App Users</p>
+              <p className="text-xs text-slate-400">Grant owner access &amp; assign parts</p>
             </div>
           </div>
           <ChevronRight size={18} className="text-slate-300" />

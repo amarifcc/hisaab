@@ -10,13 +10,13 @@ Hisaab is a private PWA for tracking renovation project finances. It is used by 
 
 | Role | Capabilities |
 |------|-------------|
-| **Supervisor** | Full CRUD on all data. Sees Add buttons and edit/delete controls. Access to admin-only pages (`/logs`, `/visits`). |
-| **Viewer** | Read-only. Sees all data but no mutation controls. "Read only" badge shown on dashboard. |
+| **Supervisor** | Full CRUD on all data. The all-access superset. Sees Add buttons and edit/delete controls. Access to admin pages (`/logs`, `/visits`) and the Combined Report. |
+| **Owner** | Logs in to a **standalone owner module** (`/owner`) and records expenses they paid **directly** (money that never passed through the supervisor), scoped to their own project part. Can add/edit/delete only their own owner-expenses. Cannot see or touch the supervisor workspace, transfers, deals, or settings. |
+| **Viewer** | Read-only. Sees all supervisor data but no mutation controls. "Read only" badge shown on dashboard. |
 
-Roles are stored in `profiles.role` (`supervisor` or `viewer`). Every new signup gets `viewer` by default. To promote to supervisor, run:
-```sql
-UPDATE public.profiles SET role = 'supervisor' WHERE id = '<user-id>';
-```
+Roles are stored in `profiles.role` (`supervisor`, `owner`, or `viewer`). Every new signup gets `viewer` by default (zero access until promoted). Promote/assign via **Settings → App Users** (supervisor only), which sets the role and, for owners, their `profiles.part_id`. Supervisor is the superset — to give one person both supervisor and owner powers, make them a supervisor.
+
+There is no multi-role: `role` is a single field. The owner→part link lives on `profiles.part_id` (a DB CHECK enforces owner ⇒ part assigned). RLS scopes owner writes to `source='owner'` rows they created, pinned to their part.
 
 ---
 
@@ -38,6 +38,8 @@ Money received by the supervisor from an owner for a specific part. The `part_id
 
 ### Expenses
 Money spent on the renovation. An expense has a total amount, a category, an optional `paid_to` (contractor/supplier name), and is allocated to one or more parts via `expense_allocations`. A multi-part purchase is shown as linked per-part rows with the same reference number.
+
+Every expense carries a `source`: `'supervisor'` (the default — money managed by the supervisor) or `'owner'` (money an owner paid directly). The supervisor workspace (`/home`, cashbook, deal paid-totals) only ever reads `source='supervisor'`; owner-source expenses live in the owner module and only surface together in the Combined Report. Owner expenses are always single-part (pinned to the owner's part).
 
 ### Deals
 Agreed contracts with contractors. A deal records a piece of work and its revision history. The first revision is the original agreed scope; later revisions add or reduce scope with positive/negative amount deltas. Payments are computed from `expenses.paid_to` matching the deal's `person_name` for the relevant part, so paid/remaining is shown at contractor+part level.
@@ -71,6 +73,28 @@ Category CRUD (supervisor only). Supports parent/child hierarchy and group flags
 
 ### Settings — Parts (`/settings/parts`)
 Project part CRUD (supervisor only). Name, short name, color, sort order.
+
+### Settings — App Users (`/settings/users`)
+Supervisor-only. Lists all login accounts (`profiles`) with their role and (for owners) assigned part. Lets the supervisor promote a viewer to **owner** + assign a project part, or demote back. A supervisor cannot change their own role (prevents lock-out). Owners must sign up first (they start as viewers with no access), then get promoted here.
+
+---
+
+## Owner Module (`/owner`) — Owner role only
+
+A standalone shell, separate from the supervisor workspace. An owner sees only their own part. It does **not** show the supervisor bottom nav/sidebar.
+
+| Page | Content |
+|------|---------|
+| **My Expenses** (`/owner`) | Total direct spend for the owner's part + list of their owner-source expenses, with add (FAB) / edit / delete. Add/edit uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
+| **Report** (`/owner/report`) | Combined Report scoped to the owner's part: supervisor + owner spend with a source split and category breakdown. |
+
+The owner is auto-redirected here on login; they cannot load `/home` or any supervisor/settings page.
+
+---
+
+## Combined Report (`/reports/combined`) — Supervisor
+
+Standalone merged report (linked from the sidebar). Per project part: total spend = supervisor + owner, shown with a supervisor-vs-owner split bar and a category breakdown. Supervisor sees all parts; the owner-module version (`/owner/report`) shows only the owner's part. Does not touch or alter `/home`.
 
 ---
 

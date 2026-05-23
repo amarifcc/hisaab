@@ -9,7 +9,7 @@ export default async function CashbookPage() {
   const [{ data: parts }, { data: transfers }, { data: expenses }] = await Promise.all([
     supabase.from('project_parts').select('*').order('sort_order'),
     supabase.from('transfers').select('*, project_parts(*)').order('date', { ascending: true }),
-    supabase.from('expenses').select('*, expense_allocations(*, project_parts(*))').order('date', { ascending: true }),
+    supabase.from('expenses').select('*, expense_allocations(*, project_parts(*))').eq('source', 'supervisor').order('date', { ascending: true }),
   ])
 
   return (

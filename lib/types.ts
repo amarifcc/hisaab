@@ -35,18 +35,21 @@ export interface Database {
         Row: {
           id: string
           name: string
-          role: 'supervisor' | 'viewer'
+          role: 'supervisor' | 'owner' | 'viewer'
+          part_id: string | null
           created_at: string
         }
         Insert: {
           id: string
           name: string
-          role: 'supervisor' | 'viewer'
+          role: 'supervisor' | 'owner' | 'viewer'
+          part_id?: string | null
           created_at?: string
         }
         Update: {
           name?: string
-          role?: 'supervisor' | 'viewer'
+          role?: 'supervisor' | 'owner' | 'viewer'
+          part_id?: string | null
         }
       }
       categories: {
@@ -116,6 +119,7 @@ export interface Database {
           date: string
           notes: string | null
           ref_number: number
+          source: 'supervisor' | 'owner'
           created_by: string | null
           created_at: string
           updated_at: string
@@ -128,6 +132,7 @@ export interface Database {
           category_id?: string | null
           date?: string
           notes?: string | null
+          source?: 'supervisor' | 'owner'
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -139,6 +144,7 @@ export interface Database {
           category_id?: string | null
           date?: string
           notes?: string | null
+          source?: 'supervisor' | 'owner'
           updated_at?: string
         }
       }

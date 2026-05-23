@@ -1,21 +1,38 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-async function getSupervisor() {
+type Actor = {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  user: { id: string } | null
+  profile: { role?: string; part_id?: string | null } | null
+}
+
+async function getActor(): Promise<Actor> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { supabase, user: null, profile: null }
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+  const { data: profile } = await supabase.from('profiles').select('role, part_id').eq('id', user.id).single()
   return { supabase, user, profile }
 }
 
 // allocations: Array<{ part_id: string; amount: number }>
 export async function POST(req: Request) {
-  const { supabase, user, profile } = await getSupervisor()
-  if (!user || profile?.role !== 'supervisor') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { supabase, user, profile } = await getActor()
+  const role = profile?.role
+  if (!user || (role !== 'supervisor' && role !== 'owner'))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const isOwner = role === 'owner'
+  if (isOwner && !profile?.part_id)
+    return NextResponse.json({ error: 'No project part assigned to your account' }, { status: 403 })
 
   const body = await req.json()
-  const { description, total_amount, paid_to, category_id, date, notes, allocations } = body
+  const { description, total_amount, paid_to, category_id, date, notes } = body
+
+  // Owners always write a single allocation to their own part; never trust the client allocations/source.
+  const source = isOwner ? 'owner' : 'supervisor'
+  const allocations: { part_id: string; amount: number }[] = isOwner
+    ? [{ part_id: profile!.part_id!, amount: Number(total_amount) }]
+    : body.allocations
 
   if (!description || !total_amount || !allocations?.length)
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -28,7 +45,7 @@ export async function POST(req: Request) {
     description, total_amount: Number(total_amount),
     paid_to: paid_to || null, category_id: category_id || null,
     date: date || new Date().toISOString().slice(0, 10),
-    notes: notes || null, created_by: user.id,
+    notes: notes || null, source, created_by: user.id,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -55,17 +72,30 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const { supabase, user, profile } = await getSupervisor()
-  if (!user || profile?.role !== 'supervisor') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { supabase, user, profile } = await getActor()
+  const role = profile?.role
+  if (!user || (role !== 'supervisor' && role !== 'owner'))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const isOwner = role === 'owner'
+  if (isOwner && !profile?.part_id)
+    return NextResponse.json({ error: 'No project part assigned to your account' }, { status: 403 })
 
   const body = await req.json()
-  const { id, description, total_amount, paid_to, category_id, date, notes, allocations } = body
+  const { id, description, total_amount, paid_to, category_id, date, notes } = body
+
+  const { data: before } = await supabase.from('expenses').select('*').eq('id', id).single()
+
+  // Owners may only edit their own owner-source rows; force the allocation back to their part.
+  if (isOwner && (before?.source !== 'owner' || before?.created_by !== user.id))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const allocations: { part_id: string; amount: number }[] = isOwner
+    ? [{ part_id: profile!.part_id!, amount: Number(total_amount) }]
+    : body.allocations
 
   const allocationTotal = allocations.reduce((s: number, a: { amount: number }) => s + Number(a.amount), 0)
   if (Math.abs(allocationTotal - Number(total_amount)) > 0.01)
     return NextResponse.json({ error: 'Allocation amounts must sum to total' }, { status: 400 })
 
-  const { data: before } = await supabase.from('expenses').select('*').eq('id', id).single()
   const { data, error } = await supabase.from('expenses').update({
     description, total_amount: Number(total_amount),
     paid_to: paid_to || null, category_id: category_id || null,
@@ -98,11 +128,18 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { supabase, user, profile } = await getSupervisor()
-  if (!user || profile?.role !== 'supervisor') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const { supabase, user, profile } = await getActor()
+  const role = profile?.role
+  if (!user || (role !== 'supervisor' && role !== 'owner'))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const isOwner = role === 'owner'
 
   const { id } = await req.json()
   const { data: before } = await supabase.from('expenses').select('*').eq('id', id).single()
+
+  if (isOwner && (before?.source !== 'owner' || before?.created_by !== user.id))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const { error } = await supabase.from('expenses').delete().eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
