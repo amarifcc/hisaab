@@ -424,7 +424,7 @@ function OverviewReport({ summaries, grand, selectedPart, sourceFilter, ownerVie
         </div>
         <div className={cn('grid gap-2 px-4 pb-4', showSourceSplit ? 'grid-cols-2' : 'grid-cols-1')}>
           {sourceFilter !== 'owner' && <SourceStat label="Supervisor spent" amount={grand.supervisor} percent={showSourceSplit ? supervisorPct : 100} className="bg-rose-50 text-rose-600" />}
-          {sourceFilter !== 'supervisor' && <SourceStat label={ownPart ? 'Your direct spend' : 'Owner-direct'} amount={grand.owner} percent={showSourceSplit ? ownerPct : 100} className="bg-blue-50 text-blue-600" />}
+          {sourceFilter !== 'supervisor' && <SourceStat label={ownPart ? 'Your direct spend' : 'Owner-direct'} amount={grand.owner} percent={showSourceSplit ? ownerPct : 100} className="bg-amber-50 text-amber-600" />}
         </div>
       </div>
 
@@ -711,7 +711,7 @@ function CombinedExpensesList({ expenses, selectedPart, sourceFilter }: {
                   </div>
                   <div className="ml-3 flex flex-col items-end gap-1 flex-shrink-0">
                     <div className="flex items-center gap-2">
-                      <span className={cn('text-sm font-bold', row.expense.source === 'owner' ? 'text-blue-600' : 'text-rose-500')}>
+                      <span className={cn('text-sm font-bold', row.expense.source === 'owner' ? 'text-amber-600' : 'text-rose-500')}>
                         PKR {formatPKR(row.amount)}
                       </span>
                       {isExpanded ? <ChevronUp size={14} className="text-slate-300" /> : <ChevronDown size={14} className="text-slate-300" />}
@@ -901,7 +901,7 @@ function SplitMeter({ supervisor, owner, compact = false }: { supervisor: number
   return (
     <div className={cn('rounded-full overflow-hidden flex bg-slate-100', compact ? 'h-1.5 mt-2' : 'h-2 mt-3')}>
       <div className="h-full bg-rose-500" style={{ width: `${supPct}%` }} />
-      <div className="h-full bg-blue-600" style={{ width: `${ownPct}%` }} />
+      <div className="h-full bg-amber-500" style={{ width: `${ownPct}%` }} />
     </div>
   )
 }
@@ -965,7 +965,7 @@ function LinkedExpenseTag({ row }: { row: ExpenseDisplayRow }) {
 
 function SourceBadge({ source }: { source: 'supervisor' | 'owner' }) {
   if (source === 'owner') {
-    return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded"><Receipt size={10} /> Owner</span>
+    return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded"><Receipt size={10} /> Owner</span>
   }
   return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded"><ArrowDownToLine size={10} /> Supervisor</span>
 }

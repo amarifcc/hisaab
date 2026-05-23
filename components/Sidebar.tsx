@@ -42,10 +42,10 @@ export default function Sidebar({ userName, userRole }: Props) {
   const isSettingsActive = pathname.startsWith('/settings')
 
   const ownerNav: NavItem[] = isOwner
-    ? [{ href: '/owner', icon: Wallet, label: 'Home', exact: true }]
+    ? [{ href: '/owner', icon: Wallet, label: 'Owner Home', exact: true }]
     : []
   const jointNav: NavItem[] = isSupervisor || isOwner
-    ? [{ href: '/joint', icon: PieChart, label: 'Home' }]
+    ? [{ href: '/joint', icon: PieChart, label: 'Joint Home' }]
     : []
 
   function isActive(item: NavItem) {
