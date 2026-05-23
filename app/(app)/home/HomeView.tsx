@@ -416,6 +416,50 @@ export default function HomeView({ parts, transfers, expenses, categories, deals
 
 // ── Shared summary card ───────────────────────────────────────────────────────
 
+// Mini swipe carousel — up to N items, snap-scroll with dot indicators.
+function TopSlider({ title, items, accentClass }: {
+  title: string
+  items: { label: string; amount: number }[]
+  accentClass: string
+}) {
+  const [idx, setIdx] = useState(0)
+  const ref = useRef<HTMLDivElement>(null)
+
+  function onScroll() {
+    const el = ref.current
+    if (!el || el.clientWidth === 0) return
+    const i = Math.round(el.scrollLeft / el.clientWidth)
+    setIdx(prev => (prev === i ? prev : i))
+  }
+
+  return (
+    <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
+      <p className="text-[11px] font-semibold text-slate-400">{title}</p>
+      {items.length === 0 ? (
+        <p className="text-xs font-semibold text-slate-400 mt-1">none</p>
+      ) : (
+        <>
+          <div ref={ref} onScroll={onScroll} className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory">
+            {items.map((it, i) => (
+              <div key={i} className="snap-start shrink-0 w-full">
+                <p className="text-sm leading-snug font-medium text-slate-700 mt-1 line-clamp-2 break-words">{it.label}</p>
+                <p className={cn('text-xs font-semibold mt-1', accentClass)}>PKR {formatPKR(it.amount)}</p>
+              </div>
+            ))}
+          </div>
+          {items.length > 1 && (
+            <div className="flex items-center gap-1 mt-2">
+              {items.map((_, i) => (
+                <span key={i} className={cn('h-1 rounded-full transition-all', i === idx ? 'w-3 bg-slate-400' : 'w-1.5 bg-slate-200')} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function SummaryCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div className="bg-white rounded-2xl px-4 py-3.5 border border-slate-100 shadow-sm">
@@ -1490,11 +1534,11 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
     }, 0)
     const balance = deposited - spent
 
-    const topDeal = deals.reduce<DealWithPart | null>((top, deal) => {
-      if (!top || dealTotal(deal) > dealTotal(top)) return deal
-      return top
-    }, null)
-    const topCategory = (() => {
+    const topDeals = [...deals]
+      .sort((a, b) => dealTotal(b) - dealTotal(a))
+      .slice(0, 3)
+      .map(d => ({ label: d.name, amount: dealTotal(d) }))
+    const topCategories = (() => {
       const totals = new Map<string, { name: string; amount: number }>()
       for (const expense of expenses) {
         const alloc = expense.expense_allocations.find(a => a.part_id === selectedPart.id)
@@ -1505,11 +1549,10 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
         cur.amount += amount
         totals.set(name, cur)
       }
-      let top: { name: string; amount: number } | null = null
-      for (const entry of totals.values()) {
-        if (!top || entry.amount > top.amount) top = entry
-      }
-      return top
+      return [...totals.values()]
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 3)
+        .map(c => ({ label: c.name, amount: c.amount }))
     })()
     const spentPct = deposited > 0 ? Math.min((spent / deposited) * 100, 100) : 0
     const rawSpentPct = deposited > 0 ? (spent / deposited) * 100 : 0
@@ -1559,20 +1602,8 @@ function PartsReport({ transfers, expenses, deals, parts, selectedPart }: {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
-            <p className="text-[11px] font-semibold text-slate-400">Top Category</p>
-            <p className="text-sm leading-snug font-medium text-slate-700 mt-1 line-clamp-2 break-words">
-              {topCategory ? topCategory.name : '-'}
-            </p>
-            <p className="text-xs font-semibold text-rose-400 mt-1">{topCategory ? `PKR ${formatPKR(topCategory.amount)}` : 'none'}</p>
-          </div>
-          <div className="bg-white rounded-2xl px-4 py-3 border border-slate-100 shadow-sm min-w-0">
-            <p className="text-[11px] font-semibold text-slate-400">Top Deal</p>
-            <p className="text-sm leading-snug font-medium text-slate-700 mt-1 line-clamp-2 break-words">
-              {topDeal ? topDeal.name : '-'}
-            </p>
-            <p className="text-xs font-semibold text-blue-500 mt-1">{topDeal ? `PKR ${formatPKR(dealTotal(topDeal))}` : 'none'}</p>
-          </div>
+          <TopSlider title="Top Categories" items={topCategories} accentClass="text-rose-400" />
+          <TopSlider title="Top Deals" items={topDeals} accentClass="text-blue-500" />
         </div>
 
         {recentActivity}
