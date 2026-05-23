@@ -39,6 +39,7 @@ export default async function OwnerReportPage() {
       expenses={scoped}
       title="Combined Report"
       subtitle={`Supervisor + your spend on ${(part as ProjectPart).name}`}
+      ownerView
     />
   )
 }
