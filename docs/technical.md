@@ -34,15 +34,12 @@ app/
       users/                 — App Users: promote viewer→owner + assign part (supervisor only)
     reports/
       combined/              — Combined Report: per-part supervisor + owner spend (supervisor, all parts)
-    [legacy redirects]       — /transfers, /expenses, /deals, /records,
-                               /transactions, /reports all redirect to /home
-
-  (owner)/                   — Standalone owner shell (owner role only; OwnerShell, not (app) nav)
-    layout.tsx               — Guards role='owner', redirects others to /
-    owner/
+    owner/                   — Owner module (owner role only; shares the (app) shell)
       page.tsx               — My Expenses: owner's own owner-source expenses (server) → OwnerView
       OwnerView.tsx          — Client: list + FAB + ExpenseSheet (locked part, source='owner')
-      report/page.tsx        — Combined Report scoped to the owner's part
+      report/page.tsx        — My Report: Combined Report scoped to the owner's part
+    [legacy redirects]       — /transfers, /expenses, /deals, /records,
+                               /transactions, /reports all redirect to /home
 
   logs/                      — Write Logs admin page (outside (app) group, no nav shell)
     page.tsx                 — Supervisor-only audit trail

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   Menu, X,
-  House, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, BookOpen, PieChart
+  House, ChevronDown, ChevronRight, Layers, Tag, Users, LogOut, Settings, BookOpen, PieChart, Wallet
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -13,10 +13,25 @@ import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
 import CacheRefreshButton from '@/components/CacheRefreshButton'
 
-const mainNav = [
+// Supervisor: full workspace + combined report (all parts).
+const supervisorNav = [
   { href: '/home',             icon: House,    label: 'Home'            },
   { href: '/cashbook',         icon: BookOpen, label: 'Cashbook'        },
   { href: '/reports/combined', icon: PieChart, label: 'Combined Report' },
+]
+
+// Owner: views the supervisor app read-only (Home, Cashbook) + writes in their own module.
+const ownerNav = [
+  { href: '/home',         icon: House,    label: 'Home'        },
+  { href: '/cashbook',     icon: BookOpen, label: 'Cashbook'    },
+  { href: '/owner',        icon: Wallet,   label: 'My Expenses' },
+  { href: '/owner/report', icon: PieChart, label: 'My Report'   },
+]
+
+// Viewer: read-only view of the supervisor app.
+const viewerNav = [
+  { href: '/home',     icon: House,    label: 'Home'     },
+  { href: '/cashbook', icon: BookOpen, label: 'Cashbook' },
 ]
 
 const settingsNav = [
@@ -36,6 +51,8 @@ export default function Sidebar({ userName, userRole }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
+  const isSupervisor = userRole === 'supervisor'
+  const mainNav = userRole === 'owner' ? ownerNav : isSupervisor ? supervisorNav : viewerNav
   const isSettingsActive = pathname.startsWith('/settings')
 
   async function handleSignOut() {
@@ -89,7 +106,7 @@ export default function Sidebar({ userName, userRole }: Props) {
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
           {mainNav.map(({ href, icon: Icon, label }) => {
-            const active = pathname === href || pathname.startsWith(href + '/')
+            const active = href === '/owner' ? pathname === '/owner' : (pathname === href || pathname.startsWith(href + '/'))
             return (
               <Link
                 key={href}
@@ -108,7 +125,8 @@ export default function Sidebar({ userName, userRole }: Props) {
             )
           })}
 
-          {/* Settings section */}
+          {/* Settings section — supervisor only */}
+          {isSupervisor && (
           <div className="pt-2">
             <button
               onClick={() => setSettingsOpen(s => !s)}
@@ -150,6 +168,7 @@ export default function Sidebar({ userName, userRole }: Props) {
               </div>
             )}
           </div>
+          )}
         </nav>
 
         {/* Account footer */}

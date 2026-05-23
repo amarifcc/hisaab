@@ -24,9 +24,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const appProfile = profile as AppProfile | null
   const role = appProfile?.role ?? 'viewer'
 
-  // Owners get their own standalone shell — keep them out of the supervisor workspace.
-  if (role === 'owner') redirect('/owner')
-
   return (
     <div className="min-h-screen bg-slate-50">
       <Sidebar
@@ -41,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <main className="max-w-lg mx-auto pb-16">
         {children}
       </main>
-      <BottomNav />
+      <BottomNav role={role} />
     </div>
   )
 }

@@ -20,7 +20,7 @@ This is **not** the Next.js you know from training data. APIs, conventions, and 
 |------|---------------|
 | Home tab UI (Overview, Expenses, Transfers, Deals) | `app/(app)/home/HomeView.tsx` |
 | Home server data fetching / auth | `app/(app)/home/page.tsx` |
-| Owner module (owner role only) | `app/(owner)/owner/page.tsx`, `OwnerView.tsx`, `components/OwnerShell.tsx` |
+| Owner module (owner role only) | `app/(app)/owner/page.tsx`, `app/(app)/owner/OwnerView.tsx` (shares the (app) shell) |
 | Combined report (supervisor + owner spend) | `components/CombinedReportView.tsx`; pages under `app/(app)/reports/combined/` & `app/(owner)/owner/report/` |
 | App Users provisioning (promote to owner) | `app/(app)/settings/users/`, `app/api/admin/users/route.ts` |
 | Write Logs page | `app/logs/page.tsx` |
@@ -154,9 +154,13 @@ async function handleDelete(id: string) {
 
 ## Navigation rules
 
-- **Bottom nav and sidebar** show 3 items: Home (`/home`), Cashbook, Settings
+- **`BottomNav.tsx` and `Sidebar.tsx` are role-aware** (they receive `role`):
+  - **Supervisor**: Home, Cashbook, Combined Report (sidebar), Settings.
+  - **Owner**: Home + Cashbook (read-only views) + My Expenses (`/owner`) + My Report (`/owner/report`). No Settings.
+  - **Viewer**: Home, Cashbook.
 - **Do not add** `/logs` or `/visits` to navigation — they are intentionally URL-only admin pages
-- When adding a new user-facing page, add it to both `BottomNav.tsx` and `Sidebar.tsx`
+- When adding a new user-facing page, add it to both `BottomNav.tsx` and `Sidebar.tsx` (in the correct role's nav array)
+- Owners are **not** redirected out of the supervisor shell — they share it read-only. `isSupervisor` (role === 'supervisor') gates write controls, so owners/viewers see the supervisor app without Add/edit/delete.
 
 ---
 

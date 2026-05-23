@@ -11,7 +11,7 @@ Hisaab is a private PWA for tracking renovation project finances. It is used by 
 | Role | Capabilities |
 |------|-------------|
 | **Supervisor** | Full CRUD on all data. The all-access superset. Sees Add buttons and edit/delete controls. Access to admin pages (`/logs`, `/visits`) and the Combined Report. |
-| **Owner** | Logs in to a **standalone owner module** (`/owner`) and records expenses they paid **directly** (money that never passed through the supervisor), scoped to their own project part. Can add/edit/delete only their own owner-expenses. Cannot see or touch the supervisor workspace, transfers, deals, or settings. |
+| **Owner** | **Read-only on the supervisor app** (Home, Cashbook — sees what the supervisor is doing with the money they handed over) **plus write access to their own module** (`/owner`): records expenses they paid **directly** (money that never passed through the supervisor), scoped to their own project part. Can add/edit/delete only their own owner-expenses. Cannot write supervisor data or open Settings. |
 | **Viewer** | Read-only. Sees all supervisor data but no mutation controls. "Read only" badge shown on dashboard. |
 
 Roles are stored in `profiles.role` (`supervisor`, `owner`, or `viewer`). Every new signup gets `viewer` by default (zero access until promoted). Promote/assign via **Settings → App Users** (supervisor only), which sets the role and, for owners, their `profiles.part_id`. Supervisor is the superset — to give one person both supervisor and owner powers, make them a supervisor.
@@ -81,14 +81,14 @@ Supervisor-only. Lists all login accounts (`profiles`) with their role and (for 
 
 ## Owner Module (`/owner`) — Owner role only
 
-A standalone shell, separate from the supervisor workspace. An owner sees only their own part. It does **not** show the supervisor bottom nav/sidebar.
+Lives **inside the same app shell** as the supervisor (shared bottom nav + sidebar) — owners are not exiled. Their nav is role-tailored: **Home** and **Cashbook** (read-only views of the supervisor's work) plus **My Expenses** and **My Report** (their own). No Settings.
 
 | Page | Content |
 |------|---------|
 | **My Expenses** (`/owner`) | Total direct spend for the owner's part + list of their owner-source expenses, with add (FAB) / edit / delete. Add/edit uses the shared `ExpenseSheet` locked to the owner's part (no split, no deal context). |
-| **Report** (`/owner/report`) | Combined Report scoped to the owner's part: supervisor + owner spend with a source split and category breakdown. |
+| **My Report** (`/owner/report`) | Combined Report scoped to the owner's part: supervisor + owner spend with a source split and category breakdown. |
 
-The owner is auto-redirected here on login; they cannot load `/home` or any supervisor/settings page.
+Supervisors/viewers visiting `/owner` are redirected to `/home` (it's owner-only). Owners writing is enforced by API stamping + RLS regardless of UI.
 
 ---
 
